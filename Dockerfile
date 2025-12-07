@@ -1,5 +1,5 @@
-# Używamy lekkiej wersji Node.js opartej na Debianie
-FROM node:18-slim
+# ZMIANA: Podbijamy wersję Node do 20 (wymagane przez nowy Next.js)
+FROM node:20-slim
 
 # 1. Instalacja zależności systemowych
 RUN apt-get update && apt-get install -y \
@@ -12,8 +12,7 @@ RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# 2. NAPRAWA BŁĘDU: Instalacja yt-dlp z flagą --break-system-packages
-# To jest konieczne w Debianie 12 (Bookworm), na którym stoi node:18-slim
+# 2. Instalacja yt-dlp z flagą naprawiającą błąd (to już masz dobrze)
 RUN pip3 install --no-cache-dir yt-dlp --break-system-packages
 
 # 3. Ustawienie katalogu roboczego
@@ -22,7 +21,7 @@ WORKDIR /app
 # 4. Kopiowanie plików package
 COPY package*.json ./
 
-# 5. Instalacja zależności (npm ci jest szybsze i pewniejsze przy buildach)
+# 5. Instalacja zależności
 RUN npm ci
 
 # 6. Kopiowanie reszty plików
