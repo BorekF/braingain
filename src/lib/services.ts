@@ -935,17 +935,130 @@ ${text}
       }
       
       // Sprawdź czy odpowiedzi mają dokładnie 4 elementy
+      // Napraw automatycznie połączone odpowiedzi (AI czasami łączy odpowiedzi w jednym stringu)
       if (pytanie.odpowiedzi.length !== 4) {
-        logger.error('Nieprawidłowa liczba odpowiedzi', {
+        logger.warn('Nieprawidłowa liczba odpowiedzi - próba automatycznej naprawy', {
           index: i,
           expected: 4,
           actual: pytanie.odpowiedzi.length,
           answers: pytanie.odpowiedzi,
         });
-        throw new Error(
-          `Pytanie #${i + 1} ma ${pytanie.odpowiedzi.length} odpowiedzi zamiast 4. ` +
-          `Odpowiedzi: ${JSON.stringify(pytanie.odpowiedzi)}`
-        );
+        
+        // Próba naprawy: sprawdź czy niektóre odpowiedzi zawierają połączone odpowiedzi
+        // (wykrywane przez wzorce jak: '"odpowiedź1", "odpowiedź2"' lub 'odpowiedź1", "odpowiedź2')
+        const fixedAnswers: string[] = [];
+        for (const answer of pytanie.odpowiedzi) {
+          if (typeof answer !== 'string') {
+            fixedAnswers.push(String(answer));
+            continue;
+          }
+          
+          // Wzorzec 1: "tekst1", "tekst2" - dokładnie w cudzysłowach z przecinkiem
+          const pattern1 = /"([^"]+)"\s*,\s*"([^"]+)"/g;
+          const matches1 = [...answer.matchAll(pattern1)];
+          
+          // Wzorzec 2: tekst1", "tekst2 - bez początkowego cudzysłowu (jak w błędzie)
+          const pattern2 = /([^"]+)"\s*,\s*"([^"]+)"/g;
+          const matches2 = [...answer.matchAll(pattern2)];
+          
+          // Wzorzec 3: Prosty wzorzec z ", " jako separator (częsty błąd JSON)
+          const pattern3 = /(.+?)"\s*,\s*"(.+)/;
+          const matches3 = answer.match(pattern3);
+          
+          if (matches1.length > 0) {
+            // Wzorzec 1: pełny wzorzec z cudzysłowami
+            for (const match of matches1) {
+              fixedAnswers.push(match[1].trim());
+              fixedAnswers.push(match[2].trim());
+            }
+            // Sprawdź czy jest jeszcze tekst przed lub po matchach
+            let remaining = answer;
+            for (const match of matches1) {
+              remaining = remaining.replace(match[0], '');
+            }
+            remaining = remaining.trim().replace(/^["',\s]+|["',\s]+$/g, '').trim();
+            if (remaining.length > 0 && !remaining.match(/^["',\s]*$/)) {
+              fixedAnswers.push(remaining);
+            }
+          } else if (matches2.length > 0) {
+            // Wzorzec 2: bez początkowego cudzysłowu (jak w błędzie z logów)
+            for (const match of matches2) {
+              fixedAnswers.push(match[1].trim());
+              fixedAnswers.push(match[2].trim());
+            }
+            // Sprawdź czy jest jeszcze tekst przed matchami
+            const beforeMatch = answer.substring(0, answer.indexOf(matches2[0][0])).trim();
+            if (beforeMatch.length > 0) {
+              fixedAnswers.unshift(beforeMatch.replace(/^["',\s]+|["',\s]+$/g, '').trim());
+            }
+          } else if (matches3) {
+            // Wzorzec 3: prosty wzorzec z ", "
+            fixedAnswers.push(matches3[1].replace(/^["',\s]+|["',\s]+$/g, '').trim());
+            fixedAnswers.push(matches3[2].replace(/^["',\s]+|["',\s]+$/g, '').trim());
+          } else {
+            // Normalna odpowiedź - usuń tylko zewnętrzne cudzysłowy
+            const cleaned = answer.replace(/^["',\s]+|["',\s]+$/g, '').trim();
+            if (cleaned.length > 0) {
+              fixedAnswers.push(cleaned);
+            }
+          }
+        }
+        
+        // Jeśli po naprawie mamy dokładnie 4 odpowiedzi, użyj ich
+        if (fixedAnswers.length === 4) {
+          logger.info('Automatyczna naprawa odpowiedzi zakończona sukcesem', {
+            index: i,
+            originalLength: pytanie.odpowiedzi.length,
+            fixedAnswers,
+          });
+          pytanie.odpowiedzi = fixedAnswers;
+        } else {
+          // Jeśli nadal nie mamy 4 odpowiedzi, spróbuj bardziej agresywnego podejścia
+          // Rozdziel wszystkie odpowiedzi po przecinkach jeśli są w jednym stringu
+          if (pytanie.odpowiedzi.length < 4 && pytanie.odpowiedzi.length > 0) {
+            const lastAnswer = pytanie.odpowiedzi[pytanie.odpowiedzi.length - 1];
+            if (typeof lastAnswer === 'string') {
+              // Sprawdź czy ostatnia odpowiedź zawiera wzorce sugerujące wiele odpowiedzi
+              const splitPattern = /["']([^"']+)["']/g;
+              const extracted = [...lastAnswer.matchAll(splitPattern)];
+              if (extracted.length > 1) {
+                // Wyciągnij wszystkie fragmenty w cudzysłowach
+                const extractedAnswers = extracted.map(m => m[1].trim()).filter(a => a.length > 0);
+                if (extractedAnswers.length > 0) {
+                  // Zastąp ostatnią odpowiedź pierwszym fragmentem, dodaj resztę
+                  const newAnswers = [
+                    ...pytanie.odpowiedzi.slice(0, -1),
+                    ...extractedAnswers,
+                  ];
+                  if (newAnswers.length === 4) {
+                    logger.info('Automatyczna naprawa odpowiedzi (metoda 2) zakończona sukcesem', {
+                      index: i,
+                      originalLength: pytanie.odpowiedzi.length,
+                      fixedAnswers: newAnswers,
+                    });
+                    pytanie.odpowiedzi = newAnswers;
+                  }
+                }
+              }
+            }
+          }
+          
+          // Jeśli nadal nie mamy 4 odpowiedzi, zgłoś błąd
+          if (pytanie.odpowiedzi.length !== 4) {
+            logger.error('Nieprawidłowa liczba odpowiedzi - automatyczna naprawa nie powiodła się', {
+              index: i,
+              expected: 4,
+              actual: pytanie.odpowiedzi.length,
+              originalAnswers: pytanie.odpowiedzi,
+              fixedAnswers: fixedAnswers.length === 4 ? fixedAnswers : undefined,
+            });
+            throw new Error(
+              `Pytanie #${i + 1} ma ${pytanie.odpowiedzi.length} odpowiedzi zamiast 4. ` +
+              `Odpowiedzi: ${JSON.stringify(pytanie.odpowiedzi)}. ` +
+              `AI prawdopodobnie połączyło odpowiedzi w jednym stringu - spróbuj ponownie wygenerować quiz.`
+            );
+          }
+        }
       }
       
       // Sprawdź czy wszystkie odpowiedzi są stringami
