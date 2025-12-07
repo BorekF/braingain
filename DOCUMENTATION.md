@@ -914,6 +914,21 @@ Wszystkie komponenty interfejsu ucznia zostały zaimplementowane:
 
 **Uwaga**: `force-dynamic` jest właściwym wyborem dla stron które zawsze wymagają połączenia z bazą danych i nie mogą być statycznie wygenerowane.
 
+### Problem: Błąd "Nieprawidłowa struktura pytania" przy generowaniu quizu
+
+**Status**: ✅ **NAPRAWIONE** - Dodano szczegółowe logowanie i lepszą walidację struktury pytań.
+
+**Przyczyna**: OpenAI czasami zwraca pytania w nieprawidłowej strukturze lub z brakującymi polami. Poprzednia walidacja nie logowała szczegółów, co utrudniało debugowanie.
+
+**Rozwiązanie**: 
+- Dodano szczegółowe logowanie błędów walidacji pytań - logi pokazują dokładną strukturę zwróconą przez OpenAI
+- Dodano bardziej precyzyjne komunikaty błędów z numerem pytania i szczegółami problemu
+- Dodano walidację każdej odpowiedzi (czy jest stringiem, czy nie jest pusta)
+- Dodano automatyczną konwersję uzasadnienia do stringa jeśli jest innego typu
+- Błędy są teraz logowane z pełnym kontekstem (indeks pytania, typy danych, wartości próbek)
+
+**Debugowanie**: Jeśli nadal występują błędy, sprawdź logi w Railway (zakładka **Logs** lub panel admin → **Pokaż Logi**) - będą zawierały szczegółowe informacje o strukturze pytań zwróconych przez OpenAI.
+
 ---
 
 ## 📝 Ważne Uwagi
@@ -1118,6 +1133,10 @@ Projekt **BrainGain** jest **KOMPLETNY** i gotowy do użycia:
   - **Naprawiono problem z buildem**: 
     - `supabase.ts` używa teraz placeholderów podczas buildu, aby build mógł przejść bez zmiennych środowiskowych
     - Dodano `export const dynamic = 'force-dynamic'` do stron `/student` i `/student/material/[id]` aby uniknąć prerenderowania podczas buildu
+  - **Naprawiono błędy walidacji quizów**: 
+    - Dodano szczegółowe logowanie błędów walidacji pytań z pełnym kontekstem
+    - Ulepszono komunikaty błędów - pokazują numer pytania i szczegóły problemu
+    - Dodano walidację każdej odpowiedzi i automatyczną konwersję uzasadnienia
   - Zaktualizowano `.gitignore` aby pozwolić na commit `logs/.gitkeep` (zachowanie struktury katalogu)
   - Dodano szczegółową dokumentację wdrożenia na Railway w `DOCUMENTATION.md`
   - Projekt gotowy do wdrożenia na Railway bez dodatkowej konfiguracji

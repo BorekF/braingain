@@ -901,18 +901,89 @@ ${text}
       pytania: selectedQuestions,
     };
 
-    // Walidacja każdego pytania
-    for (const pytanie of finalQuiz.pytania) {
-      if (!pytanie.pytanie || !pytanie.odpowiedzi || pytanie.odpowiedzi.length !== 4) {
-        throw new Error('Nieprawidłowa struktura pytania');
+    // Walidacja każdego pytania z szczegółowym logowaniem
+    for (let i = 0; i < finalQuiz.pytania.length; i++) {
+      const pytanie = finalQuiz.pytania[i];
+      
+      // Szczegółowe logowanie struktury pytania dla debugowania
+      if (!pytanie) {
+        logger.error('Pytanie jest null lub undefined', { index: i, allQuestions: finalQuiz.pytania.length });
+        throw new Error(`Pytanie #${i + 1} jest null lub undefined`);
       }
-      if (
-        pytanie.poprawna_odpowiedz < 0 ||
-        pytanie.poprawna_odpowiedz > 3
-      ) {
+      
+      // Sprawdź czy pytanie ma wszystkie wymagane pola
+      const hasQuestion = pytanie.pytanie && typeof pytanie.pytanie === 'string' && pytanie.pytanie.trim().length > 0;
+      const hasAnswers = pytanie.odpowiedzi && Array.isArray(pytanie.odpowiedzi);
+      const hasCorrectAnswer = typeof pytanie.poprawna_odpowiedz === 'number';
+      
+      if (!hasQuestion || !hasAnswers) {
+        logger.error('Nieprawidłowa struktura pytania', {
+          index: i,
+          pytanieKeys: Object.keys(pytanie),
+          hasQuestion,
+          hasAnswers,
+          answersType: pytanie.odpowiedzi ? typeof pytanie.odpowiedzi : 'undefined',
+          answersLength: pytanie.odpowiedzi ? pytanie.odpowiedzi.length : 0,
+          pytanieSample: typeof pytanie.pytanie === 'string' ? pytanie.pytanie.substring(0, 100) : pytanie.pytanie,
+          fullQuestion: JSON.stringify(pytanie, null, 2),
+        });
         throw new Error(
-          `Nieprawidłowy indeks poprawnej odpowiedzi: ${pytanie.poprawna_odpowiedz}`
+          `Nieprawidłowa struktura pytania #${i + 1}: ` +
+          `pytanie=${hasQuestion}, odpowiedzi=${hasAnswers && pytanie.odpowiedzi.length} elementów. ` +
+          `Struktura: ${JSON.stringify(Object.keys(pytanie))}`
         );
+      }
+      
+      // Sprawdź czy odpowiedzi mają dokładnie 4 elementy
+      if (pytanie.odpowiedzi.length !== 4) {
+        logger.error('Nieprawidłowa liczba odpowiedzi', {
+          index: i,
+          expected: 4,
+          actual: pytanie.odpowiedzi.length,
+          answers: pytanie.odpowiedzi,
+        });
+        throw new Error(
+          `Pytanie #${i + 1} ma ${pytanie.odpowiedzi.length} odpowiedzi zamiast 4. ` +
+          `Odpowiedzi: ${JSON.stringify(pytanie.odpowiedzi)}`
+        );
+      }
+      
+      // Sprawdź czy wszystkie odpowiedzi są stringami
+      for (let j = 0; j < pytanie.odpowiedzi.length; j++) {
+        if (typeof pytanie.odpowiedzi[j] !== 'string' || pytanie.odpowiedzi[j].trim().length === 0) {
+          logger.error('Nieprawidłowa odpowiedź', {
+            questionIndex: i,
+            answerIndex: j,
+            answerType: typeof pytanie.odpowiedzi[j],
+            answerValue: pytanie.odpowiedzi[j],
+          });
+          throw new Error(
+            `Pytanie #${i + 1}, odpowiedź #${j + 1} nie jest poprawnym stringiem: ${typeof pytanie.odpowiedzi[j]}`
+          );
+        }
+      }
+      
+      // Sprawdź indeks poprawnej odpowiedzi
+      if (!hasCorrectAnswer || pytanie.poprawna_odpowiedz < 0 || pytanie.poprawna_odpowiedz > 3) {
+        logger.error('Nieprawidłowy indeks poprawnej odpowiedzi', {
+          index: i,
+          poprawna_odpowiedz: pytanie.poprawna_odpowiedz,
+          poprawna_odpowiedz_type: typeof pytanie.poprawna_odpowiedz,
+        });
+        throw new Error(
+          `Nieprawidłowy indeks poprawnej odpowiedzi w pytaniu #${i + 1}: ${pytanie.poprawna_odpowiedz} ` +
+          `(oczekiwano 0-3, typ: ${typeof pytanie.poprawna_odpowiedz})`
+        );
+      }
+      
+      // Sprawdź czy uzasadnienie jest stringiem (jeśli istnieje)
+      if (pytanie.uzasadnienie !== undefined && typeof pytanie.uzasadnienie !== 'string') {
+        logger.warn('Uzasadnienie nie jest stringiem, konwertuję', {
+          index: i,
+          uzasadnienie_type: typeof pytanie.uzasadnienie,
+          uzasadnienie_value: pytanie.uzasadnienie,
+        });
+        pytanie.uzasadnienie = String(pytanie.uzasadnienie);
       }
     }
 
