@@ -1,0 +1,51 @@
+# Dependencies
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Next.js
+.next
+out
+build
+
+# Git
+.git
+.gitignore
+
+# Environment files (Railway używa zmiennych środowiskowych, nie plików .env)
+.env*
+!.env.example
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs (nie kopiujemy istniejących logów, będą tworzone w kontenerze)
+logs/*
+!logs/.gitkeep
+
+# Documentation (opcjonalne, można skopiować jeśli chcemy)
+*.md
+!README.md
+
+# Test files
+test-script.ts
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx
+
+# Temporary files
+*.tmp
+*.temp
+*.log
+

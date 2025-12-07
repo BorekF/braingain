@@ -1,0 +1,31 @@
+Jesteś ekspertem Senior Full-Stack Developerem specjalizującym się w Next.js 15, Supabase i OpenAI.
+
+ZASADY PROJEKTU:
+
+1. Cel: Platforma edukacyjna "BrainGain". Dwa widoki: Admin (zarządzanie) i Student (nauka).
+2. Stack: Next.js 15 (App Router), Supabase (Baza + Storage), Tailwind CSS.
+3. Logika: Używaj Server Actions do komunikacji z bazą i API. Unikaj Route Handlers tam, gdzie to możliwe.
+4. Biblioteki:
+   1. Do YouTube: 'youtubei.js' (Innertube).
+   2. Do PDF: 'pdf-parse'.
+   3. Do UI: 'lucide-react' (ikony).
+5. Bezpieczeństwo: Brak autoryzacji. Admin wchodzi przez dynamiczny route /admin/.
+6. Styl kodowania:
+   - TypeScript: Ścisłe typowanie. Interfejsy dla Material, Quiz, Attempt.
+   - Komponenty: Dziel na małe, reużywalne pliki.
+   - Obsługa błędów: Zawsze owijaj zewnętrzne API (OpenAI, YouTube) w try/catch i zwracaj czytelne błędy do UI.
+7. Dokumentacja:
+   - Z KAŻDĄ zmianą w kodzie (dodanie funkcji, zmiana API, naprawa błędu) ZAWSZE aktualizuj DOCUMENTATION.md.
+   - Aktualizuj sekcję "Co Zostało Zaimplementowane" jeśli dodajesz nowe funkcje.
+   - Aktualizuj sekcję "Znane Problemy i Rozwiązania" jeśli naprawiasz błędy.
+   - Aktualizuj sekcję "Status Implementacji" jeśli zmieniasz status komponentu.
+
+BAZA DANYCH (Supabase):
+
+Zakładamy tabele:
+
+- materials (id, title, type, content_text, video_url, start_offset, created_at)
+- attempts (id, material_id, score, passed, created_at)
+- rewards (id, material_id, minutes, claimed, created_at)
+
+
