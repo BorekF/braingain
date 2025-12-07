@@ -5,6 +5,9 @@ import { estimateMaterialDuration } from '@/lib/utils';
 import Link from 'next/link';
 import { Youtube, FileText, CheckCircle2, Clock, Lock, Trophy, Settings } from 'lucide-react';
 
+// Wymusza renderowanie w runtime (nie podczas buildu) - strony wymagają połączenia z bazą danych
+export const dynamic = 'force-dynamic';
+
 async function getMaterialStatus(materialId: string): Promise<'completed' | 'available' | 'cooldown'> {
   const passed = await checkMaterialPassed(materialId);
   if (passed) {

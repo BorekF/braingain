@@ -2,6 +2,9 @@ import { notFound } from 'next/navigation';
 import { getMaterials, type Material } from '@/lib/materials';
 import { MaterialPageClient } from './MaterialPageClient';
 
+// Wymusza renderowanie w runtime (nie podczas buildu) - strony wymagają połączenia z bazą danych
+export const dynamic = 'force-dynamic';
+
 interface PageProps {
   params: Promise<{ id: string }>;
 }

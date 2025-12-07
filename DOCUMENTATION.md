@@ -900,6 +900,20 @@ Wszystkie komponenty interfejsu ucznia zostały zaimplementowane:
 
 **Uwaga**: Podczas buildu możesz zobaczyć ostrzeżenie w konsoli, ale build powinien przejść pomyślnie. Zmienne środowiskowe muszą być ustawione w Railway **przed pierwszym deployem**.
 
+### Problem: Build nie przechodzi - błąd prerenderowania stron z bazą danych
+
+**Status**: ✅ **NAPRAWIONE** - Dodano `export const dynamic = 'force-dynamic'` do stron student.
+
+**Przyczyna**: Next.js podczas buildu próbuje prerenderować (SSG) wszystkie strony, w tym `/student` i `/student/material/[id]`. Te strony wywołują Server Actions (`getMaterials()`, `getTotalRewards()`, itp.) które próbują połączyć się z bazą danych używając placeholderów zamiast prawdziwych zmiennych, co powoduje błąd buildu.
+
+**Rozwiązanie**: 
+- Dodano `export const dynamic = 'force-dynamic'` do `src/app/student/page.tsx`
+- Dodano `export const dynamic = 'force-dynamic'` do `src/app/student/material/[id]/page.tsx`
+- Te strony są teraz renderowane w runtime (po wdrożeniu), nie podczas buildu
+- Build może teraz przejść pomyślnie, a strony będą działać poprawnie w runtime z prawdziwymi zmiennymi środowiskowymi
+
+**Uwaga**: `force-dynamic` jest właściwym wyborem dla stron które zawsze wymagają połączenia z bazą danych i nie mogą być statycznie wygenerowane.
+
 ---
 
 ## 📝 Ważne Uwagi
@@ -1101,7 +1115,9 @@ Projekt **BrainGain** jest **KOMPLETNY** i gotowy do użycia:
   - Dodano `Dockerfile` z pełną konfiguracją środowiska (Node.js 18, Python 3, ffmpeg, yt-dlp)
   - Dodano `.dockerignore` aby zoptymalizować proces buildu
   - Zaktualizowano `next.config.ts` - ładowanie `.env.local` tylko w development (produkcja używa zmiennych środowiskowych)
-  - **Naprawiono problem z buildem**: `supabase.ts` używa teraz placeholderów podczas buildu, aby build mógł przejść bez zmiennych środowiskowych
+  - **Naprawiono problem z buildem**: 
+    - `supabase.ts` używa teraz placeholderów podczas buildu, aby build mógł przejść bez zmiennych środowiskowych
+    - Dodano `export const dynamic = 'force-dynamic'` do stron `/student` i `/student/material/[id]` aby uniknąć prerenderowania podczas buildu
   - Zaktualizowano `.gitignore` aby pozwolić na commit `logs/.gitkeep` (zachowanie struktury katalogu)
   - Dodano szczegółową dokumentację wdrożenia na Railway w `DOCUMENTATION.md`
   - Projekt gotowy do wdrożenia na Railway bez dodatkowej konfiguracji
