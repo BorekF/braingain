@@ -886,6 +886,20 @@ Wszystkie komponenty interfejsu ucznia zostały zaimplementowane:
 
 **Uwaga**: Jeśli problem nadal występuje, sprawdź logi (`logs/app.log`) dla szczegółowej struktury zwracanego obiektu. Może być konieczne użycie innej biblioteki (np. `pdf2json`) lub innej wersji `pdf-parse`.
 
+### Problem: Build na Railway nie przechodzi - "Missing Supabase environment variables"
+
+**Status**: ✅ **NAPRAWIONE** - Zmodyfikowano `supabase.ts` aby obsługiwał brak zmiennych podczas buildu.
+
+**Przyczyna**: Next.js podczas buildu (`npm run build`) próbuje przetworzyć wszystkie strony i komponenty. Jeśli moduł rzuca błąd podczas importu (np. `supabase.ts` sprawdza zmienne środowiskowe), build się nie powiedzie, nawet jeśli zmienne będą dostępne w runtime (po wdrożeniu).
+
+**Rozwiązanie**: 
+- Zmodyfikowano `src/lib/supabase.ts` aby używał placeholderów podczas buildu, jeśli zmienne nie są dostępne
+- Sprawdzanie zmiennych odbywa się tylko w runtime (gdy aplikacja działa)
+- Build może teraz przejść bez zmiennych środowiskowych - Railway automatycznie ustawi je przed uruchomieniem aplikacji
+- W runtime aplikacja nadal wymaga prawidłowych zmiennych i rzuci czytelny błąd, jeśli ich brakuje
+
+**Uwaga**: Podczas buildu możesz zobaczyć ostrzeżenie w konsoli, ale build powinien przejść pomyślnie. Zmienne środowiskowe muszą być ustawione w Railway **przed pierwszym deployem**.
+
 ---
 
 ## 📝 Ważne Uwagi
@@ -1087,6 +1101,8 @@ Projekt **BrainGain** jest **KOMPLETNY** i gotowy do użycia:
   - Dodano `Dockerfile` z pełną konfiguracją środowiska (Node.js 18, Python 3, ffmpeg, yt-dlp)
   - Dodano `.dockerignore` aby zoptymalizować proces buildu
   - Zaktualizowano `next.config.ts` - ładowanie `.env.local` tylko w development (produkcja używa zmiennych środowiskowych)
+  - **Naprawiono problem z buildem**: `supabase.ts` używa teraz placeholderów podczas buildu, aby build mógł przejść bez zmiennych środowiskowych
+  - Zaktualizowano `.gitignore` aby pozwolić na commit `logs/.gitkeep` (zachowanie struktury katalogu)
   - Dodano szczegółową dokumentację wdrożenia na Railway w `DOCUMENTATION.md`
   - Projekt gotowy do wdrożenia na Railway bez dodatkowej konfiguracji
 
