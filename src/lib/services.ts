@@ -707,35 +707,31 @@ export interface Quiz {
 }
 
 /**
- * Funkcja pomocnicza do normalizacji kluczy w obiekcie (usuwa tagi HTML z kluczy)
+ * Funkcja pomocnicza do bezpiecznego czyszczenia kluczy w obiekcie (usuwa tagi HTML z kluczy)
  * Rekurencyjnie przechodzi przez obiekt i normalizuje wszystkie klucze
+ * Używana PO parsowaniu JSON, aby uniknąć uszkodzenia struktury JSON
  */
-function normalizeObjectKeys(obj: any): any {
+function cleanObjectKeys(obj: any): any {
   if (obj === null || obj === undefined) {
     return obj;
   }
   
   if (Array.isArray(obj)) {
-    return obj.map(item => normalizeObjectKeys(item));
+    return obj.map(v => cleanObjectKeys(v));
   }
   
   if (typeof obj === 'object') {
-    const normalized: any = {};
-    for (const key in obj) {
-      if (Object.prototype.hasOwnProperty.call(obj, key)) {
-        // Usuń tagi HTML z klucza (np. "<br>pytanie" -> "pytanie")
-        const normalizedKey = key.replace(/^<br\s*\/?>|<\/?br\s*\/?>|<\w+[^>]*>|<\/\w+>/gi, '').trim();
-        normalized[normalizedKey] = normalizeObjectKeys(obj[key]);
-      }
-    }
-    return normalized;
+    return Object.keys(obj).reduce((acc: any, key) => {
+      // Usuwamy tagi HTML z klucza bezpiecznie (bez zmieniania struktury)
+      const cleanKey = key.replace(/<[^>]*>/g, '').trim();
+      
+      // Rekurencyjnie czyścimy wartości
+      acc[cleanKey] = cleanObjectKeys(obj[key]);
+      return acc;
+    }, {});
   }
   
-  // Dla wartości pierwotnych, usuń tagi HTML z stringów
-  if (typeof obj === 'string') {
-    return obj.replace(/<br\s*\/?>/gi, ' ').replace(/<\/?br\s*\/?>/gi, ' ').replace(/<\w+[^>]*>|<\/\w+>/gi, '').trim();
-  }
-  
+  // Dla wartości pierwotnych zwracamy bez zmian (można dodać czyszczenie stringów jeśli potrzeba)
   return obj;
 }
 
@@ -865,7 +861,7 @@ ${text}
         {
           role: 'system',
           content:
-            'Jesteś pomocnym asystentem, który generuje quizy edukacyjne w formacie JSON. Zawsze zwracasz poprawny, walidowalny JSON bez dodatkowych znaczników. W polu "uzasadnienie" zawsze podaj krótkie wyjaśnienie (2-3 zdania) dlaczego odpowiedź jest poprawna, oparte na treści materiału. NIE cytuj fragmentów tekstu - wyjaśnij koncept.',
+            'Jesteś pomocnym asystentem, który generuje quizy edukacyjne w formacie JSON. Zawsze zwracasz poprawny, walidowalny JSON bez dodatkowych znaczników. W polu "uzasadnienie" zawsze podaj krótkie wyjaśnienie (2-3 zdania) dlaczego odpowiedź jest poprawna, oparte na treści materiału. NIE cytuj fragmentów tekstu - wyjaśnij koncept. Output strict JSON only. Do NOT include HTML tags (like <br> or <b>) in the JSON keys. Keys must be plain strings without any HTML markup.',
         },
         {
           role: 'user',
@@ -894,42 +890,34 @@ ${text}
       jsonText = jsonText.replace(/^```\s*/, '').replace(/\s*```$/, '');
     }
 
-    // Usuń tagi HTML z JSON (czasami AI dodaje <br> w kluczach lub wartościach)
-    // Usuwamy <br>, </br>, <br/>, <br /> i inne proste tagi HTML
-    jsonText = jsonText.replace(/<br\s*\/?>/gi, '').replace(/<\/br>/gi, '');
-    jsonText = jsonText.replace(/<\w+[^>]*>/gi, '').replace(/<\/\w+>/gi, '');
-
     // Znajdź pierwszy { i ostatni } aby wyciągnąć tylko JSON
+    // NIE usuwamy tagów HTML przed parsowaniem - to może uszkodzić strukturę JSON
     const firstBrace = jsonText.indexOf('{');
     const lastBrace = jsonText.lastIndexOf('}');
     if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
       jsonText = jsonText.substring(firstBrace, lastBrace + 1);
     }
 
-    // Parsowanie JSON z obsługą błędów
+    // Parsowanie JSON z obsługą błędów (BEZ WCZEŚNIEJSZEGO CZYSZCZENIA HTML)
     let quiz: Quiz;
     try {
       quiz = JSON.parse(jsonText);
     } catch (parseError) {
-      // Przed rzuceniem błędu, spróbuj naprawić JSON usuwając tagi HTML z kluczy
-      try {
-        // Zamień klucze z tagami HTML na normalne klucze (np. "<br>pytanie" -> "pytanie")
-        const fixedJsonText = jsonText.replace(/"<br\s*\/?>(\w+)"/gi, '"$1"')
-                                       .replace(/"(\w+)<br\s*\/?>"/gi, '"$1"');
-        quiz = JSON.parse(fixedJsonText);
-        logger.warn('JSON został naprawiony po usunięciu tagów HTML z kluczy');
-      } catch (secondParseError) {
-        throw new Error(
-          `Błąd parsowania odpowiedzi JSON z OpenAI: ${parseError instanceof Error ? parseError.message : String(parseError)}. ` +
-          `Otrzymany tekst: ${jsonText.substring(0, 500)}...`
-        );
-      }
+      logger.error('Błąd parsowania JSON z OpenAI', {
+        error: parseError instanceof Error ? parseError.message : String(parseError),
+        jsonTextSample: jsonText.substring(0, 500),
+        fullJsonText: jsonText,
+      });
+      throw new Error(
+        `Błąd parsowania odpowiedzi JSON z OpenAI: ${parseError instanceof Error ? parseError.message : String(parseError)}. ` +
+        `Otrzymany tekst: ${jsonText.substring(0, 500)}...`
+      );
     }
 
-    // Normalizacja kluczy w obiekcie quizu (usuń tagi HTML z kluczy jeśli jeszcze są)
-    // Czasami parsowanie przejdzie, ale klucze nadal mają tagi HTML
+    // Dopiero teraz czyścimy klucze (PO parsowaniu - bezpieczne)
+    // To zamieni klucze typu "<br>pytanie" na "pytanie" bez uszkadzania struktury
     if (quiz && typeof quiz === 'object') {
-      quiz = normalizeObjectKeys(quiz) as Quiz;
+      quiz = cleanObjectKeys(quiz) as Quiz;
     }
 
     // Walidacja struktury
