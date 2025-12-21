@@ -85,7 +85,7 @@ Server Actions do zarządzania materiałami w bazie danych:
 - ✅ Wyświetlanie PDF w interfejsie użytkownika (iframe + przycisk pobierania)
 
 #### Funkcje AI
-- ✅ `generateQuiz(text)` - Generuje quiz z 10 pytaniami używając OpenAI
+- ✅ `generateQuiz(text)` - Generuje quiz z 10 pytaniami używając OpenAI (GPT-4o-mini)
 - ✅ **Inteligentne wykrywanie materiałów językowych przez OpenAI** - System używa dodatkowego wywołania API do analizy typu materiału:
   - Analiza fragmentu tekstu (~2000 znaków) przez GPT-4o-mini
   - Określa czy materiał dotyczy nauki języka obcego (confidence: low/medium/high)
@@ -93,11 +93,11 @@ Server Actions do zarządzania materiałami w bazie danych:
   - Dla materiałów językowych: pytania o znaczenie słów, tłumaczenia, zwroty, gramatykę
   - Dla materiałów ogólnych: pytania o fakty, analizy, szczegóły
   - Blokuje nieprzydatne pytania typu "Jaki jest klimat filmu" dla lekcji językowych
-- ✅ **4 strategie zwiększające różnorodność quizów:**
-  1. **Wstrzyknięcie losowości do promptu** - Każde wywołanie używa unikalnego identyfikatora (seed), który zmienia "ścieżkę myślową" AI
-  2. **Parametry frequency_penalty i presence_penalty** - Wymuszają sięganie głębiej w tekst i unikanie powtarzania tematów
-  3. **Losowanie "Osobowości Egzaminatora"** - 5 różnych stylów pytań (Faktograf, Analityk, Detektyw, Konceptualista, Praktyk)
-  4. **Technika "Nadmiarowości i Losowania"** - Generowanie 18 pytań, potem losowe wybranie 10 z nich
+- ✅ **Prosty, niezawodny prompt z konkretnym przykładem JSON** - Gwarantuje konsystentne wyniki
+- ✅ **Losowość w prompcie** - Każde wywołanie używa unikalnego seed dla różnorodności pytań
+- ✅ **Niższa temperatura (0.5)** - Bardziej konsystentna struktura JSON, mniej kreatywnych eksperymentów
+- ✅ **Agresywna normalizacja** - Automatyczne czyszczenie kluczy i wartości (usuwa podkreślniki, markdown, kropki)
+- ✅ **Fallbacki dla różnych wariantów kluczy** - Obsługuje `uzasadnienie`/`uzasadnienia`, `pytanie`/`question`, itp.
 - ✅ Walidacja rozmiaru tekstu przed wysłaniem do OpenAI (limit ~472k znaków)
 - ✅ Walidacja `OPENAI_API_KEY` przy inicjalizacji klienta
 
@@ -628,9 +628,9 @@ const text = await parsePDF(file);
 
 #### `generateQuiz(text: string): Promise<Quiz | null>`
 
-Generuje quiz z 10 pytaniami używając OpenAI. Funkcja implementuje inteligentne wykrywanie materiałów językowych przez API oraz 4 strategie zwiększające różnorodność quizów przy każdym wywołaniu:
+Generuje quiz z 10 pytaniami używając OpenAI GPT-4o-mini. Funkcja implementuje **inteligentne wykrywanie materiałów językowych** oraz **prosty, niezawodny prompt** gwarantujący konsystentne wyniki.
 
-**Wykrywanie Materiałów Językowych przez OpenAI (NOWE)**
+**Wykrywanie Materiałów Językowych przez OpenAI**
 - System używa dodatkowego wywołania API do analizy typu materiału (koszt: ~$0.0001 za analizę)
 - Funkcja `detectLanguageLearningMaterial()`:
   - Analizuje fragment tekstu (~2000 znaków) przez GPT-4o-mini
@@ -650,30 +650,30 @@ Generuje quiz z 10 pytaniami używając OpenAI. Funkcja implementuje inteligentn
   - Nie pomyli filmu o językach z lekcją językową
   - Rozpoznaje subtelne sygnały w tekście
 
-**Strategia 1: Wstrzyknięcie losowości do promptu**
-- Każde wywołanie generuje unikalny identyfikator (hash) i dodaje go do promptu
-- Zmienia to "ścieżkę myślową" AI, wymuszając wybór innych faktów z tekstu
+**Niezawodność i Konsystencja (Wersja 0.7.1)**
+- **Prosty, precyzyjny prompt** (~40 linii z konkretnym przykładem JSON)
+- **Niższa temperatura (0.5)** - Bardziej konsystentna struktura, mniej eksperymentów
+- **Wzmocnione instrukcje systemowe** - Wyraźny zakaz używania podkreślników, markdown, tagów HTML w kluczach
+- **Konkretny przykład JSON** w prompcie - AI widzi dokładnie czego oczekujemy
+- **Agresywna normalizacja** - `cleanObjectKeys()` usuwa:
+  - Podkreślniki z początku/końca (`_pytanie_` → `pytanie`)
+  - Markdown (`**tekst**`, `_tekst_` → `tekst`)
+  - Kropki z początku odpowiedzi (`.Ma kaszel` → `Ma kaszel`)
+  - Tagi HTML (jeśli AI je dodało)
+- **Fallbacki dla różnych wariantów kluczy**:
+  - `uzasadnienie` / `uzasadnienia` / `explanation` → `uzasadnienie`
+  - `pytanie` / `question` → `pytanie`
+  - `odpowiedzi` / `answers` → `odpowiedzi`
+  - `poprawna_odpowiedz` / `correctanswer` → `poprawna_odpowiedz`
 
-**Strategia 2: Parametry frequency_penalty i presence_penalty**
-- `frequency_penalty: 0.3` - Kary za powtarzanie tokenów
-- `presence_penalty: 0.7` - Kary za powtarzanie tematów, wymusza sięganie głębiej w tekst
-
-**Strategia 3: Losowanie "Osobowości Egzaminatora"**
-- 5 różnych stylów pytań losowanych przy każdym wywołaniu:
-  - **Faktograf**: Daty, liczby, nazwy własne
-  - **Analityk**: Związki przyczynowo-skutkowe, procesy
-  - **Detektyw**: Podchwytliwe pytania o detale
-  - **Konceptualista**: Definicje, pojęcia, klasyfikacje
-  - **Praktyk**: Zastosowania, przykłady, implikacje
-
-**Strategia 4: Technika "Nadmiarowości i Losowania"**
-- Generowanie 18 pytań zamiast 10
-- Losowe wybranie 10 pytań z wygenerowanych (Fisher-Yates shuffle)
-- Gwarantuje różnorodność nawet jeśli AI zwróci podobne pytania
+**Losowość pytań**
+- Każde wywołanie używa unikalnego `randomSeed` w prompcie
+- `frequency_penalty: 0.3` i `presence_penalty: 0.5` wymuszają różnorodność
+- Pytania są różne przy każdym wywołaniu, nawet dla tego samego materiału
 
 ```typescript
 const quiz = await generateQuiz(transcript);
-// quiz.pytania - tablica 10 pytań (losowo wybranych z 18 wygenerowanych)
+// quiz.pytania - tablica 10 pytań w poprawnej, znormalizowanej strukturze
 ```
 
 ### `src/lib/materials.ts`
@@ -956,18 +956,25 @@ Wszystkie komponenty interfejsu ucznia zostały zaimplementowane:
 
 ### Problem: Błąd "Nieprawidłowa struktura pytania" przy generowaniu quizu
 
-**Status**: ✅ **NAPRAWIONE** - Dodano szczegółowe logowanie i lepszą walidację struktury pytań.
+**Status**: ✅ **NAPRAWIONE** - Przepisano całą funkcję `generateQuiz` dla maksymalnej niezawodności.
 
-**Przyczyna**: OpenAI czasami zwraca pytania w nieprawidłowej strukturze lub z brakującymi polami. Poprzednia walidacja nie logowała szczegółów, co utrudniało debugowanie.
+**Przyczyna**: OpenAI zwracało JSON z nieprawidłowymi kluczami i wartościami:
+- Klucze owinięte w podkreślniki: `_pytanie_` zamiast `pytanie`
+- Wartości z dekoracjami markdown: `_tekst_`, `**tekst**`
+- Odpowiedzi z kropkami na początku: `.Ma kaszel` zamiast `Ma kaszel`
+- Różne warianty kluczy: `uzasadnienia` zamiast `uzasadnienie`
 
-**Rozwiązanie**: 
-- Dodano szczegółowe logowanie błędów walidacji pytań - logi pokazują dokładną strukturę zwróconą przez OpenAI
-- Dodano bardziej precyzyjne komunikaty błędów z numerem pytania i szczegółami problemu
-- Dodano walidację każdej odpowiedzi (czy jest stringiem, czy nie jest pusta)
-- Dodano automatyczną konwersję uzasadnienia do stringa jeśli jest innego typu
-- Błędy są teraz logowane z pełnym kontekstem (indeks pytania, typy danych, wartości próbek)
+**Rozwiązanie (Wersja 0.7.1)**: 
+- **Uproszczono prompt** - z ~80 linii do ~40 linii z konkretnym przykładem JSON
+- **Obniżono temperaturę** - z 0.7 na 0.5 dla bardziej konsystentnej struktury
+- **Wzmocniono instrukcje systemowe** - wyraźny zakaz używania podkreślników, markdown, tagów HTML
+- **Dodano przykład JSON** w prompcie - pokazuje dokładną oczekiwaną strukturę
+- **Ulepszono `cleanObjectKeys()`** - usuwa podkreślniki, gwiazdki, kropki z kluczy i wartości
+- **Dodano normalizację kluczy** - automatyczne mapowanie wariantów (`uzasadnienie` vs `uzasadnienia`)
+- **Uproszczono walidację** - usunięto skomplikowaną logikę naprawy odpowiedzi (teraz po prostu failuje z jasnym błędem)
+- **Dodano fallbacki** - obsługa różnych wariantów kluczy (pytanie/question, odpowiedzi/answers, itp.)
 
-**Debugowanie**: Jeśli nadal występują błędy, sprawdź logi w Railway (zakładka **Logs** lub panel admin → **Pokaż Logi**) - będą zawierały szczegółowe informacje o strukturze pytań zwróconych przez OpenAI.
+**Wynik**: System jest teraz znacznie bardziej odporny i **consistent** - quizy generują się prawie zawsze bez błędów. Jeśli OpenAI nadal zwraca nieprawidłowy format, komunikaty błędów są teraz bardziej czytelne i wskazują dokładny problem.
 
 ---
 
@@ -1046,7 +1053,7 @@ Projekt **BrainGain** jest **KOMPLETNY** i gotowy do użycia:
 
 *Dokumentacja utworzona: 2025-01-28*
 *Ostatnia aktualizacja: 2025-12-21*
-*Wersja projektu: 0.7.0*
+*Wersja projektu: 0.7.1*
 
 ## 🔄 Historia Zmian
 
@@ -1231,4 +1238,24 @@ Projekt **BrainGain** jest **KOMPLETNY** i gotowy do użycia:
     - Parametr `&end=` w URL embeda YouTube
     - Film automatycznie zatrzymuje się na określonym czasie końca
   - Użytkownik wie dokładnie jaki fragment ma się nauczyć (nie cały film)
+
+### Wersja 0.7.1 (2025-12-21)
+- ✅ **KRYTYCZNE: Całkowite przepisanie funkcji `generateQuiz` dla maksymalnej niezawodności**:
+  - **Problem**: OpenAI zwracało JSON z nieprawidłowymi kluczami i wartościami:
+    - Klucze owinięte w podkreślniki: `_pytanie_` zamiast `pytanie`
+    - Wartości z dekoracjami markdown: `_tekst_`, `**tekst**`
+    - Odpowiedzi z kropkami na początku: `.Ma kaszel` zamiast `Ma kaszel`
+    - Różne warianty kluczy: `uzasadnienia` zamiast `uzasadnienie`
+  - **Rozwiązanie**:
+    - Uproszczono prompt z ~80 linii do ~40 linii z konkretnym przykładem JSON
+    - Obniżono temperaturę z 0.7 na 0.5 dla bardziej konsystentnej struktury
+    - Wzmocniono instrukcje systemowe - wyraźny zakaz używania podkreślników, markdown, tagów HTML
+    - Dodano konkretny przykład JSON w prompcie
+    - Ulepszono `cleanObjectKeys()` - usuwa podkreślniki, gwiazdki, kropki z kluczy i wartości
+    - Dodano agresywną normalizację kluczy - automatyczne mapowanie wariantów
+    - Uproszczono walidację - usunięto skomplikowaną logikę naprawy odpowiedzi
+    - Dodano fallbacki dla różnych wariantów kluczy (uzasadnienie/uzasadnienia, pytanie/question, itp.)
+  - **Wynik**: System jest teraz znacznie bardziej **consistent** - quizy generują się prawie zawsze bez błędów
+  - Usunięto strategie "Osobowości Egzaminatora" i "Nadmiarowości" - były zbyt skomplikowane i zmniejszały niezawodność
+  - Zachowano wykrywanie materiałów językowych i podstawową losowość pytań
 

@@ -459,19 +459,38 @@ export function AdminPanel() {
               </div>
               {showManualInput && (
                 <div>
+                  <div className="mb-3 p-4 bg-gradient-to-r from-yellow-50 to-orange-50 border-2 border-yellow-400 rounded-xl">
+                    <p className="text-sm font-bold text-orange-900 flex items-center gap-2">
+                      <span className="text-2xl">👇</span>
+                      Automatyczne pobieranie nie powiodło się - wklej transkrypt poniżej
+                    </p>
+                  </div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Wklej transkrypt ręcznie (min. 100 znaków)
+                    Transkrypt (min. 100 znaków)
                   </label>
                   <textarea
                     value={manualText}
                     onChange={(e) => setManualText(e.target.value)}
-                    placeholder="Wklej tutaj transkrypt wideo..."
-                    rows={6}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-300 transition-all duration-200 bg-white/50 resize-none"
+                    placeholder="Jak uzyskać transkrypt:&#10;1. Otwórz film na YouTube&#10;2. Kliknij '...' pod filmem → 'Pokaż transkrypcję'&#10;3. Skopiuj cały tekst i wklej tutaj&#10;&#10;Wklej tutaj..."
+                    rows={8}
+                    className="w-full px-4 py-3 border-2 border-yellow-300 rounded-xl focus:ring-2 focus:ring-yellow-500 focus:border-yellow-400 transition-all duration-200 bg-yellow-50/50 resize-none"
+                    autoFocus
                   />
-                  <p className="text-sm text-gray-500 mt-1">
-                    {manualText.length} znaków (minimum: 100)
-                  </p>
+                  <div className="mt-2 space-y-1">
+                    <p className="text-sm font-semibold text-gray-700">
+                      {manualText.length} znaków {manualText.length >= 100 ? '✅' : `(brakuje: ${100 - manualText.length})`}
+                    </p>
+                    <div className="text-xs text-gray-600 bg-blue-50 p-2 rounded border border-blue-200">
+                      <p className="font-semibold mb-1">💡 Instrukcja krok po kroku:</p>
+                      <ol className="list-decimal list-inside space-y-1">
+                        <li>Otwórz <a href={youtubeUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">ten film na YouTube</a></li>
+                        <li>Kliknij przycisk "..." (trzy kropki) pod filmem</li>
+                        <li>Wybierz "Pokaż transkrypcję"</li>
+                        <li>Skopiuj cały tekst (Ctrl+A, Ctrl+C)</li>
+                        <li>Wklej tutaj (Ctrl+V)</li>
+                      </ol>
+                    </div>
+                  </div>
                 </div>
               )}
               <button
