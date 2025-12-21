@@ -748,12 +748,102 @@ function shuffleArray<T>(array: T[]): T[] {
 }
 
 /**
+ * Wykrywa czy materiał dotyczy nauki języka obcego używając OpenAI
+ * @param text - Fragment tekstu do analizy (pierwsze ~2000 znaków wystarczą)
+ * @returns Obiekt z informacją czy to materiał językowy oraz opcjonalnie język docelowy
+ */
+async function detectLanguageLearningMaterial(text: string): Promise<{
+  isLanguageLearning: boolean;
+  targetLanguage?: string;
+  details?: string;
+}> {
+  try {
+    // Użyj tylko fragmentu tekstu dla oszczędności (pierwsze 2000 znaków wystarczą do analizy)
+    const textSample = text.substring(0, 2000);
+    
+    const openaiClient = getOpenAI();
+    const completion = await openaiClient.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'system',
+          content: 'Jesteś ekspertem w analizie materiałów edukacyjnych. Twoje zadanie to określić czy dany tekst dotyczy nauki języka obcego. Odpowiadasz TYLKO w formacie JSON.',
+        },
+        {
+          role: 'user',
+          content: `Przeanalizuj poniższy fragment tekstu i określ:
+1. Czy ten materiał dotyczy nauki języka obcego (np. lekcja gramatyki, słownictwa, konwersacji)?
+2. Jeśli tak, jakiego języka dotyczy nauka?
+
+Materiał dotyczy nauki języka obcego jeśli:
+- Uczy słownictwa, gramatyki, wymowy w obcym języku
+- Zawiera tłumaczenia słów/zwrotów między językami
+- Wyjaśnia konstrukcje językowe, czasy, deklinacje
+- Prezentuje zwroty konwersacyjne w obcym języku
+- Uczy komunikacji w języku obcym (gastronomia, biznes, podróże itp.)
+
+Materiał NIE dotyczy nauki języka jeśli:
+- To ogólny film dokumentalny, wykład, prezentacja (nawet jeśli wspomina języki)
+- To film o historii, nauce, technologii (nawet jeśli ma obce słowa)
+- To literatura, poezja, sztuka (chyba że analizuje język)
+
+Zwróć odpowiedź w formacie JSON:
+{
+  "isLanguageLearning": true/false,
+  "targetLanguage": "nazwa języka" (np. "angielski", "hiszpański", "niemiecki") lub null jeśli to nie materiał językowy,
+  "confidence": "low"/"medium"/"high",
+  "details": "krótkie uzasadnienie decyzji (1-2 zdania)"
+}
+
+Nie dodawaj markdown. Zwróć TYLKO czysty JSON.
+
+Tekst do analizy:
+"""
+${textSample}
+"""`,
+        },
+      ],
+      temperature: 0.3, // Niska temperatura dla konsystentnych odpowiedzi
+      response_format: { type: 'json_object' },
+    });
+
+    const responseText = completion.choices[0]?.message?.content;
+    if (!responseText) {
+      logger.warn('Brak odpowiedzi z OpenAI przy wykrywaniu materiału językowego');
+      return { isLanguageLearning: false };
+    }
+
+    const result = JSON.parse(responseText);
+    
+    logger.info('Wykryto typ materiału', {
+      isLanguageLearning: result.isLanguageLearning,
+      targetLanguage: result.targetLanguage,
+      confidence: result.confidence,
+      details: result.details,
+    });
+
+    return {
+      isLanguageLearning: result.isLanguageLearning || false,
+      targetLanguage: result.targetLanguage || undefined,
+      details: result.details || undefined,
+    };
+  } catch (error) {
+    logger.error('Błąd wykrywania typu materiału', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    // W przypadku błędu, zakładamy że to nie materiał językowy (graceful degradation)
+    return { isLanguageLearning: false };
+  }
+}
+
+/**
  * Generuje quiz z tekstu używając OpenAI GPT-4o-mini
- * Zaimplementowano 4 strategie zwiększające różnorodność quizów:
- * 1. Wstrzyknięcie losowości do promptu (seed/entropy)
- * 2. Parametry frequency_penalty i presence_penalty
- * 3. Losowanie "Osobowości Egzaminatora"
- * 4. Technika "Nadmiarowości i Losowania" (generowanie 15-20 pytań, potem losowe 10)
+ * Zaimplementowano automatyczne wykrywanie materiałów językowych oraz 4 strategie zwiększające różnorodność quizów:
+ * 1. Wykrywanie typu materiału przez OpenAI (językowy vs ogólny)
+ * 2. Wstrzyknięcie losowości do promptu (seed/entropy)
+ * 3. Parametry frequency_penalty i presence_penalty
+ * 4. Losowanie "Osobowości Egzaminatora"
+ * 5. Technika "Nadmiarowości i Losowania" (generowanie 15-20 pytań, potem losowe 10)
  * 
  * @param text - Tekst źródłowy (transkrypt lub treść PDF)
  * @returns Obiekt quizu z 10 pytaniami lub null w przypadku błędu
@@ -819,14 +909,59 @@ export async function generateQuiz(text: string): Promise<Quiz | null> {
     const QUESTIONS_TO_GENERATE = 18;
     const QUESTIONS_TO_SELECT = 10;
 
+    // ===== WYKRYWANIE MATERIAŁÓW JĘZYKOWYCH PRZEZ OpenAI =====
+    // Wykryj czy materiał dotyczy nauki języka obcego używając OpenAI
+    logger.info('Wykrywanie typu materiału (językowy vs ogólny)...');
+    const materialAnalysis = await detectLanguageLearningMaterial(text);
+    const isLanguageLearning = materialAnalysis.isLanguageLearning;
+    const targetLanguage = materialAnalysis.targetLanguage;
+
     // Prompt z delimitacją dla ochrony przed prompt injection
     // + wstrzyknięcie losowości (STRATEGIA 1)
     // + osobowość egzaminatora (STRATEGIA 3)
     // + prośba o więcej pytań (STRATEGIA 4)
+    // + DOSTOSOWANIE DO MATERIAŁÓW JĘZYKOWYCH (NOWE)
+    
+    let languageInstructions = '';
+    if (isLanguageLearning) {
+      const languageInfo = targetLanguage ? ` (język: ${targetLanguage})` : '';
+      languageInstructions = `
+**UWAGA: Ten materiał dotyczy nauki języka obcego${languageInfo}!**
+
+Twoje pytania MUSZĄ skupiać się na:**
+- Znaczeniu słów, zwrotów i wyrażeń w języku obcym (np. "Co znaczy słowo/zwrot X?")
+- Tłumaczeniu słów i zdań z języka obcego na polski i odwrotnie${targetLanguage ? ` (polski ↔ ${targetLanguage})` : ''}
+- Użyciu słownictwa w kontekście (np. "Jak powiedzieć X w języku obcym?")
+- Konstrukcjach gramatycznych przedstawionych w materiale (czasy, deklinacje, koniugacje)
+- Zasadach wymowy, jeśli są omówione
+- Praktycznym zastosowaniu poznanych zwrotów i wyrażeń
+
+**ZABRONIONE pytania dla materiałów językowych:**
+- ❌ "Jaki jest ogólny klimat filmu?"
+- ❌ "Jaka jest główna tematyka materiału?"
+- ❌ "Jakie wrażenia wywołuje ten materiał?"
+- ❌ Jakiekolwiek pytania o nastrój, atmosferę lub emocje przekazu
+- ❌ Pytania o autora, producenta czy kontekst tworzenia materiału
+- ❌ Pytania historiograficzne lub kulturowe (chyba że bezpośrednio związane z nauczanym językiem)
+
+**Przykłady DOBRYCH pytań dla materiału językowego:**
+✅ "Co oznacza zwrot '[przykładowe wyrażenie z tekstu]'?"
+✅ "Jak przetłumaczyć '[słowo/zwrot]' na [język docelowy]?"
+✅ "W jakim kontekście używamy wyrażenia '[zwrot z tekstu]'?"
+✅ "Jaki czasownik/rzeczownik/przymiotnik odpowiada słowu '[słowo w języku obcym]'?"
+✅ "Która forma gramatyczna jest poprawna w zdaniu: [przykład z materiału]?"
+✅ "Jak odmienia się czasownik '[czasownik z tekstu]' w czasie [czas z materiału]?"
+✅ "Co jest różnicą między '[zwrot A]' a '[zwrot B]' w kontekście [kontekst z tekstu]?"
+
+**WAŻNE:** Jeśli w tekście znajdują się konkretne słowa lub zwroty w języku obcym, WYKORZYSTAJ JE bezpośrednio w pytaniach!
+Nie pytaj o ogólne zasady - pytaj o KONKRETNE przykłady z materiału.
+`;
+    }
+
     const prompt = `Jesteś ${selectedPersonality.name} - ${selectedPersonality.instruction}
 
 To jest unikalny identyfikator generacji: **${randomHash}**. Użyj tego identyfikatora, aby wybrać zupełnie inny zestaw faktów niż w standardowym quizie. Nie skupiaj się tylko na najważniejszych informacjach - poszukaj mniej oczywistych ciekawostek, detali i niuansów w tekście.
-
+${languageInstructions}
 Na podstawie poniższego tekstu przygotuj quiz sprawdzający wiedzę.
 
 Wymagania:

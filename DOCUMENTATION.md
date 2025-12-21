@@ -85,6 +85,13 @@ Server Actions do zarządzania materiałami w bazie danych:
 
 #### Funkcje AI
 - ✅ `generateQuiz(text)` - Generuje quiz z 10 pytaniami używając OpenAI
+- ✅ **Inteligentne wykrywanie materiałów językowych przez OpenAI** - System używa dodatkowego wywołania API do analizy typu materiału:
+  - Analiza fragmentu tekstu (~2000 znaków) przez GPT-4o-mini
+  - Określa czy materiał dotyczy nauki języka obcego (confidence: low/medium/high)
+  - Wykrywa język docelowy (angielski, hiszpański, niemiecki, itp.)
+  - Dla materiałów językowych: pytania o znaczenie słów, tłumaczenia, zwroty, gramatykę
+  - Dla materiałów ogólnych: pytania o fakty, analizy, szczegóły
+  - Blokuje nieprzydatne pytania typu "Jaki jest klimat filmu" dla lekcji językowych
 - ✅ **4 strategie zwiększające różnorodność quizów:**
   1. **Wstrzyknięcie losowości do promptu** - Każde wywołanie używa unikalnego identyfikatora (seed), który zmienia "ścieżkę myślową" AI
   2. **Parametry frequency_penalty i presence_penalty** - Wymuszają sięganie głębiej w tekst i unikanie powtarzania tematów
@@ -614,7 +621,27 @@ const text = await parsePDF(file);
 
 #### `generateQuiz(text: string): Promise<Quiz | null>`
 
-Generuje quiz z 10 pytaniami używając OpenAI. Funkcja implementuje 4 strategie zwiększające różnorodność quizów przy każdym wywołaniu:
+Generuje quiz z 10 pytaniami używając OpenAI. Funkcja implementuje inteligentne wykrywanie materiałów językowych przez API oraz 4 strategie zwiększające różnorodność quizów przy każdym wywołaniu:
+
+**Wykrywanie Materiałów Językowych przez OpenAI (NOWE)**
+- System używa dodatkowego wywołania API do analizy typu materiału (koszt: ~$0.0001 za analizę)
+- Funkcja `detectLanguageLearningMaterial()`:
+  - Analizuje fragment tekstu (~2000 znaków) przez GPT-4o-mini
+  - Określa czy materiał dotyczy nauki języka obcego
+  - Zwraca poziom pewności (confidence: low/medium/high)
+  - Wykrywa język docelowy (np. "angielski", "hiszpański", "niemiecki")
+- **Dla materiałów językowych**:
+  - Pytania skupiają się na znaczeniu słów i zwrotów w języku obcym
+  - Pytania o tłumaczenia (z/na język obcy)
+  - Pytania o użycie słownictwa w kontekście
+  - Pytania o gramatykę i konstrukcje językowe (czasy, deklinacje, koniugacje)
+  - **Blokuje** nieprzydatne pytania typu "Jaki jest klimat filmu", "Jaka jest tematyka"
+- **Dla materiałów ogólnych**:
+  - Standardowe pytania o fakty, analizy, szczegóły
+- **Zalety AI detection vs keyword matching**:
+  - Znacznie dokładniejsze rozpoznawanie kontekstu
+  - Nie pomyli filmu o językach z lekcją językową
+  - Rozpoznaje subtelne sygnały w tekście
 
 **Strategia 1: Wstrzyknięcie losowości do promptu**
 - Każde wywołanie generuje unikalny identyfikator (hash) i dodaje go do promptu
@@ -1005,8 +1032,8 @@ Projekt **BrainGain** jest **KOMPLETNY** i gotowy do użycia:
 ---
 
 *Dokumentacja utworzona: 2025-01-28*
-*Ostatnia aktualizacja: 2025-12-07*
-*Wersja projektu: 0.6.0*
+*Ostatnia aktualizacja: 2025-12-21*
+*Wersja projektu: 0.6.1*
 
 ## 🔄 Historia Zmian
 
@@ -1140,4 +1167,27 @@ Projekt **BrainGain** jest **KOMPLETNY** i gotowy do użycia:
   - Zaktualizowano `.gitignore` aby pozwolić na commit `logs/.gitkeep` (zachowanie struktury katalogu)
   - Dodano szczegółową dokumentację wdrożenia na Railway w `DOCUMENTATION.md`
   - Projekt gotowy do wdrożenia na Railway bez dodatkowej konfiguracji
+
+### Wersja 0.6.1 (2025-12-21)
+- ✅ **Inteligentne wykrywanie materiałów językowych przez OpenAI API**:
+  - Dodano funkcję `detectLanguageLearningMaterial()` wykorzystującą GPT-4o-mini
+  - System analizuje fragment tekstu (~2000 znaków) przed wygenerowaniem quizu
+  - Określa czy materiał dotyczy nauki języka obcego (confidence: low/medium/high)
+  - Wykrywa język docelowy (angielski, hiszpański, niemiecki, itp.)
+  - **Zalety AI detection**:
+    - Znacznie dokładniejsze niż keyword matching
+    - Rozumie kontekst (nie pomyli filmu o językach z lekcją językową)
+    - Rozpoznaje subtelne sygnały w treści
+  - **Koszt**: Dodatkowe ~$0.0001 za każdy quiz (fragment 2000 znaków + mała odpowiedź JSON)
+  - **Dla materiałów językowych quiz generuje pytania o**:
+    - Znaczenie słów i zwrotów w języku obcym (np. "Co znaczy zwrot X?")
+    - Tłumaczenia z języka obcego na polski i odwrotnie
+    - Użycie słownictwa w kontekście
+    - Konstrukcje gramatyczne i zasady wymowy (czasy, deklinacje, koniugacje)
+  - **Blokuje nieprzydatne pytania** typu:
+    - "Jaki jest ogólny klimat filmu?"
+    - "Jaka jest główna tematyka materiału?"
+    - Pytania o nastrój, atmosferę lub kontekst produkcji
+  - **Dla materiałów nielingwistycznych** zachowuje standardowy tryb pytań (fakty, analizy, szczegóły)
+  - Zmiana poprawia jakość quizów dla filmów edukacyjnych o nauce języków obcych
 
