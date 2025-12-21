@@ -14,7 +14,7 @@ export function AdminPanel() {
 
   // Formularz YouTube
   const [youtubeUrl, setYoutubeUrl] = useState('');
-  const [startMinutes, setStartMinutes] = useState(0);
+  const [startMinutes, setStartMinutes] = useState<number | ''>('');
   const [endMinutes, setEndMinutes] = useState<number | ''>('');
   const [manualText, setManualText] = useState('');
   const [showManualInput, setShowManualInput] = useState(false);
@@ -90,10 +90,11 @@ export function AdminPanel() {
     setLoading(true);
     try {
       const rewardMinutes = youtubeRewardMinutes === '' ? undefined : Number(youtubeRewardMinutes);
+      const startMin = startMinutes === '' ? 0 : Number(startMinutes);
       const endMin = endMinutes === '' ? undefined : Number(endMinutes);
       const result = await addYouTubeMaterial(
         youtubeUrl.trim(),
-        startMinutes,
+        startMin,
         endMin,
         showManualInput && manualText.trim() ? manualText.trim() : undefined,
         rewardMinutes
@@ -102,7 +103,7 @@ export function AdminPanel() {
       if (result.success) {
         showMessage('success', 'Materiał YouTube został dodany!');
         setYoutubeUrl('');
-        setStartMinutes(0);
+        setStartMinutes('');
         setEndMinutes('');
         setManualText('');
         setShowManualInput(false);
@@ -408,9 +409,9 @@ export function AdminPanel() {
                   <input
                     type="number"
                     value={startMinutes}
-                    onChange={(e) => setStartMinutes(parseInt(e.target.value) || 0)}
+                    onChange={(e) => setStartMinutes(e.target.value === '' ? '' : parseInt(e.target.value) || '')}
                     min="0"
-                    placeholder="0"
+                    placeholder="0 (cały film od początku)"
                     className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-300 transition-all duration-200 bg-white/50"
                   />
                 </div>
