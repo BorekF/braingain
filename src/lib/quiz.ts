@@ -8,7 +8,7 @@ import { logger } from './logger';
 
 const COOLDOWN_MINUTES = 10;
 const COOLDOWN_SECONDS = COOLDOWN_MINUTES * 60;
-const PASSING_SCORE = 9; // Minimum 9/10 do zaliczenia
+const PASSING_PERCENTAGE = 0.9; // Minimum 90% poprawnych odpowiedzi do zaliczenia
 
 
 export interface CooldownStatus {
@@ -23,6 +23,8 @@ export interface QuizResult {
   passed?: boolean;
   error?: string;
   rewardMinutes?: number;
+  passingScore?: number; // Dynamiczny próg zaliczenia (np. 8 dla 9 pytań, 9 dla 10 pytań)
+  totalQuestions?: number; // Całkowita liczba pytań w quizie
 }
 
 /**
@@ -211,7 +213,11 @@ export async function submitQuiz(
     }
 
     const score = correctCount;
-    const passed = score >= PASSING_SCORE;
+    const totalQuestions = quiz.pytania.length;
+    // Dla quizów <= 10 pytań: zawsze pozwól na 1 błąd (90% zaokrąglone W DÓŁ)
+    // Przykłady: 9 pytań → 8, 10 pytań → 9, 8 pytań → 7
+    const passingScore = Math.floor(totalQuestions * PASSING_PERCENTAGE);
+    const passed = score >= passingScore;
 
     // Zapisz próbę do bazy
     const { error: attemptError } = await supabase.from('attempts').insert({
@@ -279,6 +285,8 @@ export async function submitQuiz(
       score,
       passed,
       rewardMinutes: passed ? rewardMinutes : 0,
+      passingScore,
+      totalQuestions,
     };
   } catch (error) {
     logger.error('Błąd weryfikacji quizu', {

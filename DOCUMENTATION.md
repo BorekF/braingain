@@ -207,8 +207,13 @@ Server Actions do zarządzania materiałami w bazie danych:
 
 **Konfiguracja:**
 - Cooldown: 10 minut po nieudanej próbie
-- Próg zaliczenia: 9/10 poprawnych odpowiedzi
-- Nagroda: 30 minut za zaliczenie materiału
+- Próg zaliczenia: **90% poprawnych odpowiedzi** (dynamiczny - dostosowuje się do liczby pytań)
+  - Zaokrąglenie w dół (`Math.floor`) - **zawsze pozwala na 1 błąd dla quizów ≤10 pytań**
+  - 8 pytań → minimum 7 poprawnych (8 * 0.9 = 7.2 → 7)
+  - 9 pytań → minimum 8 poprawnych (9 * 0.9 = 8.1 → 8)
+  - 10 pytań → minimum 9 poprawnych (10 * 0.9 = 9 → 9)
+  - 11 pytań → minimum 9 poprawnych (11 * 0.9 = 9.9 → 9, pozwala na 2 błędy)
+- Nagroda: Używa `reward_minutes` z bazy lub automatyczne obliczenie na podstawie czasu trwania
 
 ---
 
@@ -1053,7 +1058,7 @@ Projekt **BrainGain** jest **KOMPLETNY** i gotowy do użycia:
 
 *Dokumentacja utworzona: 2025-01-28*
 *Ostatnia aktualizacja: 2025-12-21*
-*Wersja projektu: 0.7.1*
+*Wersja projektu: 0.7.2*
 
 ## 🔄 Historia Zmian
 
@@ -1258,4 +1263,22 @@ Projekt **BrainGain** jest **KOMPLETNY** i gotowy do użycia:
   - **Wynik**: System jest teraz znacznie bardziej **consistent** - quizy generują się prawie zawsze bez błędów
   - Usunięto strategie "Osobowości Egzaminatora" i "Nadmiarowości" - były zbyt skomplikowane i zmniejszały niezawodność
   - Zachowano wykrywanie materiałów językowych i podstawową losowość pytań
+
+### Wersja 0.7.2 (2025-12-21)
+- ✅ **Dynamiczny próg zaliczenia quizu (90% zamiast sztywnego 9/10)**:
+  - Zmieniono stałą `PASSING_SCORE = 9` na `PASSING_PERCENTAGE = 0.9` w `src/lib/quiz.ts`
+  - System automatycznie oblicza próg: `Math.floor(pytania.length * 0.9)` - 90% pytań zaokrąglone W DÓŁ
+  - Dodano pola do interfejsu `QuizResult`:
+    - `passingScore?: number` - dynamiczny próg zaliczenia (np. 8 dla 9 pytań)
+    - `totalQuestions?: number` - całkowita liczba pytań w quizie
+  - **UI automatycznie dostosowuje się**:
+    - Wynik pokazuje rzeczywistą liczbę pytań: `{score}/{totalQuestions}` zamiast sztywnego `/10`
+    - Komunikat o progu: "Musisz uzyskać minimum 8/9" zamiast zawsze "9/10"
+    - Przed quizem: "około 10 pytań" i "90%" zamiast sztywnych wartości
+  - **Przykłady działania (zaokrąglenie W DÓŁ - zawsze 1 błąd dla ≤10 pytań)**:
+    - 8 pytań → minimum 7 poprawnych (7.2 → 7, pozwala na 1 błąd)
+    - 9 pytań → minimum 8 poprawnych (8.1 → 8, pozwala na 1 błąd)
+    - 10 pytań → minimum 9 poprawnych (9.0 → 9, pozwala na 1 błąd)
+    - 11 pytań → minimum 9 poprawnych (9.9 → 9, pozwala na 2 błędy)
+  - System jest teraz sprawiedliwy - zawsze pozwala na ~10% błędów, w tym zawsze 1 błąd dla standardowych quizów ≤10 pytań
 

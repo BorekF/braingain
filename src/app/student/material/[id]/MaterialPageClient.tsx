@@ -408,10 +408,10 @@ export function MaterialPageClient({ material }: MaterialPageClientProps) {
                       Gotowy na quiz?
                     </h3>
                     <p className="text-gray-600 text-base leading-relaxed">
-                      Rozwiąż <span className="font-bold text-indigo-600">10 pytań</span> wielokrotnego wyboru.
+                      Rozwiąż <span className="font-bold text-indigo-600">około 10 pytań</span> wielokrotnego wyboru.
                       <br />
                       Aby zdobyć nagrodę, musisz uzyskać minimum{' '}
-                      <span className="font-bold text-emerald-600">9/10</span> poprawnych odpowiedzi.
+                      <span className="font-bold text-emerald-600">90%</span> poprawnych odpowiedzi.
                     </p>
                   </div>
                   <button
@@ -594,7 +594,7 @@ export function MaterialPageClient({ material }: MaterialPageClientProps) {
                   </h3>
                   <div className="inline-flex items-center gap-2 px-6 py-3 bg-emerald-100 rounded-full mb-4">
                     <span className="text-2xl font-black text-emerald-700">
-                      {quizResult.score}/10
+                      {quizResult.score}/{quizResult.totalQuestions || 10}
                     </span>
                     <span className="text-emerald-700 font-semibold">
                       poprawnych odpowiedzi
@@ -621,7 +621,7 @@ export function MaterialPageClient({ material }: MaterialPageClientProps) {
                   </h3>
                   <div className="inline-flex items-center gap-2 px-6 py-3 bg-red-100 rounded-full mb-4">
                     <span className="text-2xl font-black text-red-700">
-                      {quizResult.score}/10
+                      {quizResult.score}/{quizResult.totalQuestions || 10}
                     </span>
                     <span className="text-red-700 font-semibold">
                       poprawnych odpowiedzi
@@ -630,8 +630,9 @@ export function MaterialPageClient({ material }: MaterialPageClientProps) {
                   <div className="max-w-md mx-auto space-y-3">
                     <p className="text-gray-700 font-medium">
                       Musisz uzyskać minimum{' '}
-                      <span className="font-bold text-emerald-600">9/10</span>, aby
-                      zaliczyć quiz.
+                      <span className="font-bold text-emerald-600">
+                        {quizResult.passingScore || 9}/{quizResult.totalQuestions || 10}
+                      </span>, aby zaliczyć quiz.
                     </p>
                     <div className="bg-orange-100 border-2 border-orange-300 rounded-xl p-4">
                       <p className="text-orange-800 font-semibold">
