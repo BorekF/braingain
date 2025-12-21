@@ -16,6 +16,7 @@ export interface Material {
   content_text: string;
   video_url: string | null;
   start_offset: number;
+  end_offset: number | null;
   reward_minutes: number | null;
   created_at: string;
   updated_at: string;
@@ -70,6 +71,7 @@ export async function getMaterials(): Promise<Material[]> {
 export async function addYouTubeMaterial(
   url: string,
   startMinutes: number = 0,
+  endMinutes?: number,
   manualText?: string,
   rewardMinutes?: number
 ): Promise<{ success: boolean; error?: string; materialId?: string }> {
@@ -89,7 +91,8 @@ export async function addYouTubeMaterial(
     } else {
       // Próba automatycznego pobrania
       const startSeconds = startMinutes * 60;
-      const result = await getYouTubeTranscriptHybrid(url, startSeconds);
+      const endSeconds = endMinutes !== undefined ? endMinutes * 60 : undefined;
+      const result = await getYouTubeTranscriptHybrid(url, startSeconds, endSeconds);
 
       if (result.success && result.transcript) {
         contentText = result.transcript;
@@ -152,6 +155,7 @@ export async function addYouTubeMaterial(
         content_text: contentText,
         video_url: url,
         start_offset: startMinutes * 60,
+        end_offset: endMinutes !== undefined ? endMinutes * 60 : null,
         reward_minutes: rewardMinutes || null,
       })
       .select()

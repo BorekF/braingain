@@ -15,6 +15,7 @@ export function AdminPanel() {
   // Formularz YouTube
   const [youtubeUrl, setYoutubeUrl] = useState('');
   const [startMinutes, setStartMinutes] = useState(0);
+  const [endMinutes, setEndMinutes] = useState<number | ''>('');
   const [manualText, setManualText] = useState('');
   const [showManualInput, setShowManualInput] = useState(false);
   const [youtubeRewardMinutes, setYoutubeRewardMinutes] = useState<number | ''>('');
@@ -89,9 +90,11 @@ export function AdminPanel() {
     setLoading(true);
     try {
       const rewardMinutes = youtubeRewardMinutes === '' ? undefined : Number(youtubeRewardMinutes);
+      const endMin = endMinutes === '' ? undefined : Number(endMinutes);
       const result = await addYouTubeMaterial(
         youtubeUrl.trim(),
         startMinutes,
+        endMin,
         showManualInput && manualText.trim() ? manualText.trim() : undefined,
         rewardMinutes
       );
@@ -100,6 +103,7 @@ export function AdminPanel() {
         showMessage('success', 'Materiał YouTube został dodany!');
         setYoutubeUrl('');
         setStartMinutes(0);
+        setEndMinutes('');
         setManualText('');
         setShowManualInput(false);
         setYoutubeRewardMinutes('');
@@ -396,17 +400,33 @@ export function AdminPanel() {
                     className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-300 transition-all duration-200 bg-white/50"
                   />
               </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Start od minuty (opcjonalnie)
-                </label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Start od minuty (opcjonalnie)
+                  </label>
                   <input
                     type="number"
                     value={startMinutes}
                     onChange={(e) => setStartMinutes(parseInt(e.target.value) || 0)}
                     min="0"
+                    placeholder="0"
                     className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-300 transition-all duration-200 bg-white/50"
                   />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Koniec na minucie (opcjonalnie)
+                  </label>
+                  <input
+                    type="number"
+                    value={endMinutes}
+                    onChange={(e) => setEndMinutes(e.target.value === '' ? '' : parseInt(e.target.value) || '')}
+                    min="0"
+                    placeholder="Brak ograniczenia"
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-300 transition-all duration-200 bg-white/50"
+                  />
+                </div>
               </div>
               <div>
                 <label className="block text-sm font-medium mb-2">

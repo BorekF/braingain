@@ -28,11 +28,13 @@ function getGroqClient(): Groq {
  * Pobiera ścieżkę audio z wideo YouTube używając yt-dlp
  * @param url - URL wideo YouTube
  * @param startSeconds - Czas startu w sekundach (opcjonalnie, do przycięcia audio)
+ * @param endSeconds - Czas końca w sekundach (opcjonalnie, do przycięcia audio)
  * @returns Ścieżka do pliku audio lub null w przypadku błędu
  */
 export async function downloadYouTubeAudio(
   url: string,
-  startSeconds: number = 0
+  startSeconds: number = 0,
+  endSeconds?: number
 ): Promise<string | null> {
   try {
     const videoId = extractVideoId(url);
@@ -51,7 +53,7 @@ export async function downloadYouTubeAudio(
     // Inicjalizuj yt-dlp-wrap
     const ytDlpWrap = new YTDlpWrap();
 
-    logger.info('Pobieranie audio z YouTube', { url, videoId, startSeconds });
+    logger.info('Pobieranie audio z YouTube', { url, videoId, startSeconds, endSeconds });
 
     // Pobierz tylko audio bezpośrednio w formacie, który YouTube oferuje (bez konwersji)
     // Używamy formatu audio, który nie wymaga ffmpeg (opus, m4a, webm)
@@ -114,11 +116,13 @@ function cleanupAudioFile(filePath: string): void {
  * Transkrybuje plik audio używając Groq API (Whisper-large-v3)
  * @param audioFilePath - Ścieżka do pliku audio
  * @param startSeconds - Czas startu w sekundach (do filtrowania segmentów)
+ * @param endSeconds - Czas końca w sekundach (do filtrowania segmentów, opcjonalnie)
  * @returns Transkrypt jako string lub null w przypadku błędu
  */
 export async function transcribeWithGroq(
   audioFilePath: string,
-  startSeconds: number = 0
+  startSeconds: number = 0,
+  endSeconds?: number
 ): Promise<string | null> {
   let audioStream: fs.ReadStream | null = null;
   
@@ -149,6 +153,7 @@ export async function transcribeWithGroq(
       path: audioFilePath,
       size: fileSizeMB,
       startSeconds,
+      endSeconds,
     });
 
     // Wczytaj plik jako ReadStream (Groq SDK akceptuje ReadStream, File, Blob lub Buffer)
@@ -183,18 +188,31 @@ export async function transcribeWithGroq(
       throw new Error('Brak transkryptu w odpowiedzi z Groq API');
     }
 
-    // Filtrowanie segmentów po czasie startu
+    // Filtrowanie segmentów po zakresie czasu (startSeconds, endSeconds)
     const startMs = startSeconds * 1000;
+    const endMs = endSeconds !== undefined ? endSeconds * 1000 : undefined;
+    
     const filteredSegments = segments.filter((seg: any) => {
       // seg.start i seg.end są w sekundach, konwertujemy na milisekundy
       const segStartMs = (seg.start || 0) * 1000;
       const segEndMs = (seg.end || 0) * 1000;
-      // Bierzemy segmenty, które kończą się po startSeconds
-      return segEndMs >= startMs;
+      
+      // Segment musi kończyć się po startSeconds
+      if (segEndMs < startMs) {
+        return false;
+      }
+      // Jeśli określono endSeconds, segment musi zaczynać się przed endSeconds
+      if (endMs !== undefined && segStartMs >= endMs) {
+        return false;
+      }
+      return true;
     });
 
     if (filteredSegments.length === 0) {
-      throw new Error('Brak segmentów transkryptu po zadanym czasie startu');
+      const rangeDesc = endSeconds !== undefined 
+        ? `w zakresie ${startSeconds}s - ${endSeconds}s` 
+        : `po czasie ${startSeconds}s`;
+      throw new Error(`Brak segmentów transkryptu ${rangeDesc}`);
     }
 
     // Połączenie tekstu z segmentów
@@ -232,23 +250,25 @@ export async function transcribeWithGroq(
  * Kompletna funkcja: pobiera audio i transkrybuje przez Groq
  * @param url - URL wideo YouTube
  * @param startSeconds - Czas startu w sekundach
+ * @param endSeconds - Czas końca w sekundach (opcjonalnie)
  * @returns Transkrypt jako string lub null w przypadku błędu
  */
 export async function getYouTubeTranscriptWithGroq(
   url: string,
-  startSeconds: number = 0
+  startSeconds: number = 0,
+  endSeconds?: number
 ): Promise<string | null> {
   try {
-    logger.info('Rozpoczynam proces transkrypcji przez Groq', { url, startSeconds });
+    logger.info('Rozpoczynam proces transkrypcji przez Groq', { url, startSeconds, endSeconds });
 
     // Krok 1: Pobierz audio
-    const audioPath = await downloadYouTubeAudio(url, startSeconds);
+    const audioPath = await downloadYouTubeAudio(url, startSeconds, endSeconds);
     if (!audioPath) {
       return null;
     }
 
     // Krok 2: Transkrybuj przez Groq
-    const transcript = await transcribeWithGroq(audioPath, startSeconds);
+    const transcript = await transcribeWithGroq(audioPath, startSeconds, endSeconds);
     
     return transcript;
   } catch (error) {

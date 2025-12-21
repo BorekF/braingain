@@ -27,14 +27,16 @@ function getOpenAI(): OpenAI {
 }
 
 /**
- * Pobiera transkrypt z YouTube i filtruje segmenty przed startSeconds
+ * Pobiera transkrypt z YouTube i filtruje segmenty do określonego zakresu czasu
  * @param url - URL wideo YouTube
  * @param startSeconds - Czas startu w sekundach (od którego momentu pobrać transkrypt)
+ * @param endSeconds - Czas końca w sekundach (do którego momentu pobrać transkrypt, opcjonalnie)
  * @returns Połączony tekst transkryptu lub null w przypadku błędu
  */
 export async function getYouTubeTranscript(
   url: string,
-  startSeconds: number = 0
+  startSeconds: number = 0,
+  endSeconds?: number
 ): Promise<string | null> {
   try {
     const videoId = extractVideoId(url);
@@ -108,15 +110,29 @@ export async function getYouTubeTranscript(
       })
     );
 
-    // Filtrowanie segmentów: bierzemy tylko te, które kończą się po startSeconds
-    // startSeconds jest w sekundach, więc konwertujemy na milisekundy
+    // Filtrowanie segmentów: bierzemy tylko te w określonym zakresie czasu
+    // startSeconds i endSeconds są w sekundach, więc konwertujemy na milisekundy
     const startMs = startSeconds * 1000;
-    const filteredSegments = segments.filter(
-      (seg: any) => seg.start + seg.duration >= startMs
-    );
+    const endMs = endSeconds !== undefined ? endSeconds * 1000 : undefined;
+    
+    const filteredSegments = segments.filter((seg: any) => {
+      const segmentEnd = seg.start + seg.duration;
+      // Segment musi kończyć się po startSeconds
+      if (segmentEnd < startMs) {
+        return false;
+      }
+      // Jeśli określono endSeconds, segment musi zaczynać się przed endSeconds
+      if (endMs !== undefined && seg.start >= endMs) {
+        return false;
+      }
+      return true;
+    });
 
     if (filteredSegments.length === 0) {
-      throw new Error('Brak segmentów transkryptu po zadanym czasie startu');
+      const rangeDesc = endSeconds !== undefined 
+        ? `w zakresie ${startSeconds}s - ${endSeconds}s` 
+        : `po czasie ${startSeconds}s`;
+      throw new Error(`Brak segmentów transkryptu ${rangeDesc}`);
     }
 
     // Połączenie tekstu z segmentów
@@ -1283,11 +1299,13 @@ export async function processManualText(text: string): Promise<string | null> {
  * zwraca informację o potrzebie ręcznego wklejenia
  * @param url - URL wideo YouTube
  * @param startSeconds - Czas startu w sekundach
+ * @param endSeconds - Czas końca w sekundach (opcjonalnie)
  * @returns Obiekt z wynikiem: { success: boolean, transcript: string | null, requiresManual: boolean, error?: string, method?: 'youtube' | 'groq' }
  */
 export async function getYouTubeTranscriptHybrid(
   url: string,
-  startSeconds: number = 0
+  startSeconds: number = 0,
+  endSeconds?: number
 ): Promise<{
   success: boolean;
   transcript: string | null;
@@ -1296,8 +1314,8 @@ export async function getYouTubeTranscriptHybrid(
   method?: 'youtube' | 'groq';
 }> {
   // KROK 1: Próba automatyczna z YouTube (najszybsze, darmowe)
-  logger.info('Próba pobrania transkryptu z YouTube', { url, startSeconds });
-  const youtubeTranscript = await getYouTubeTranscript(url, startSeconds);
+  logger.info('Próba pobrania transkryptu z YouTube', { url, startSeconds, endSeconds });
+  const youtubeTranscript = await getYouTubeTranscript(url, startSeconds, endSeconds);
 
   if (youtubeTranscript) {
     logger.info('Transkrypt pobrany z YouTube', { url, length: youtubeTranscript.length });
@@ -1310,10 +1328,10 @@ export async function getYouTubeTranscriptHybrid(
   }
 
   // KROK 2: Jeśli YouTube nie działa, próbuj przez Groq API (ASR)
-  logger.info('Transkrypt z YouTube niedostępny, próba przez Groq API', { url, startSeconds });
+  logger.info('Transkrypt z YouTube niedostępny, próba przez Groq API', { url, startSeconds, endSeconds });
   
   try {
-    const groqTranscript = await getYouTubeTranscriptWithGroq(url, startSeconds);
+    const groqTranscript = await getYouTubeTranscriptWithGroq(url, startSeconds, endSeconds);
     
     if (groqTranscript) {
       logger.info('Transkrypt pobrany przez Groq API', { url, length: groqTranscript.length });

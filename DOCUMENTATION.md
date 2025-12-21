@@ -21,9 +21,10 @@
 ### Główne Funkcjonalności
 
 - ✅ **Panel Administratora**: Dodawanie materiałów (YouTube/PDF) z automatycznym pobieraniem transkryptów
+- ✅ **Określanie Fragmentu Filmu**: Admin może określić początek i koniec filmu (start_offset, end_offset)
 - ✅ **Trójpoziomowe Pobieranie Transkryptów**: 
-  1. Automatyczne pobieranie napisów z YouTube (najszybsze, darmowe)
-  2. **Transkrypcja przez Groq API (ASR)** - dla filmów bez napisów (Whisper-large-v3)
+  1. Automatyczne pobieranie napisów z YouTube (najszybsze, darmowe) - tylko dla określonego fragmentu
+  2. **Transkrypcja przez Groq API (ASR)** - dla filmów bez napisów (Whisper-large-v3) - tylko dla określonego fragmentu
   3. Opcja ręcznego wklejenia (fallback)
 - ✅ **Parsowanie PDF**: Automatyczna ekstrakcja tekstu z dokumentów PDF
 - ✅ **Generowanie Quizów**: Dynamiczne tworzenie quizów przez OpenAI GPT-4o-mini
@@ -63,17 +64,17 @@ Server Actions do zarządzania materiałami w bazie danych:
 ### 2. Backend - Serwisy (`src/lib/services.ts`)
 
 #### Funkcje YouTube
-- ✅ `getYouTubeTranscript(url, startSeconds)` - Pobiera transkrypt z YouTube (napisów)
-- ✅ `getYouTubeTranscriptHybrid(url, startSeconds)` - **Trójpoziomowe podejście:**
+- ✅ `getYouTubeTranscript(url, startSeconds, endSeconds?)` - Pobiera transkrypt z YouTube (napisów) dla określonego fragmentu
+- ✅ `getYouTubeTranscriptHybrid(url, startSeconds, endSeconds?)` - **Trójpoziomowe podejście:**
   1. Próbuje pobrać napisy z YouTube (najszybsze)
   2. Jeśli nie ma napisów → pobiera audio i transkrybuje przez Groq API (ASR)
   3. Jeśli to też nie działa → zwraca informację o potrzebie ręcznego wklejenia
 - ✅ `processManualText(text)` - Walidacja i czyszczenie ręcznie wklejonego tekstu
 
 #### Funkcje Groq ASR (`src/lib/groq-transcription.ts`)
-- ✅ `downloadYouTubeAudio(url, startSeconds)` - Pobiera ścieżkę audio z YouTube używając yt-dlp
-- ✅ `transcribeWithGroq(audioFilePath, startSeconds)` - Transkrybuje plik audio przez Groq API (Whisper-large-v3)
-- ✅ `getYouTubeTranscriptWithGroq(url, startSeconds)` - Kompletna funkcja: pobiera audio i transkrybuje
+- ✅ `downloadYouTubeAudio(url, startSeconds, endSeconds?)` - Pobiera ścieżkę audio z YouTube używając yt-dlp
+- ✅ `transcribeWithGroq(audioFilePath, startSeconds, endSeconds?)` - Transkrybuje plik audio przez Groq API (Whisper-large-v3) dla określonego fragmentu
+- ✅ `getYouTubeTranscriptWithGroq(url, startSeconds, endSeconds?)` - Kompletna funkcja: pobiera audio i transkrybuje dla określonego fragmentu
 
 #### Funkcje pomocnicze (`src/lib/utils.ts`)
 - ✅ `extractVideoId(url)` - Wyodrębnia videoId z URL YouTube (funkcja synchroniczna)
@@ -107,6 +108,8 @@ Server Actions do zarządzania materiałami w bazie danych:
 
 #### Tabele
 - ✅ `materials` - Przechowuje lekcje (YouTube/PDF)
+  - `start_offset` - Czas startu wideo w sekundach (dla YouTube)
+  - `end_offset` - Czas końca wideo w sekundach (dla YouTube, opcjonalne)
   - `reward_minutes` - Liczba minut nagrody za zaliczenie materiału (opcjonalne, ustawiane przez admina)
 - ✅ `attempts` - Historia prób rozwiązania quizów
 - ✅ `rewards` - Nagrody za zaliczone materiały
@@ -474,13 +477,16 @@ W panelu Railway przejdź do zakładki **Variables** i dodaj wszystkie wymagane 
 
 1. Administrator wchodzi na `/admin` i wprowadza hasło (wartość z `ADMIN_SECRET`)
 2. Po zalogowaniu wybiera zakładkę "YouTube"
-3. Wkleja URL wideo i opcjonalnie ustawia czas startu
+3. Wkleja URL wideo i opcjonalnie ustawia:
+   - Czas startu (od której minuty)
+   - Czas końca (do której minuty) - opcjonalnie
+   - Nagrodę w minutach - opcjonalnie (system sugeruje wartość)
 4. Klika "Dodaj materiał"
 5. **System próbuje automatycznie pobrać transkrypt w 3 krokach:**
-   - **Krok 1**: Próbuje pobrać napisy z YouTube przez `youtubei.js` (najszybsze, darmowe)
-   - **Krok 2**: Jeśli napisy nie są dostępne, pobiera audio przez `yt-dlp` i transkrybuje przez **Groq API** (Whisper-large-v3) - dla filmów bez napisów
+   - **Krok 1**: Próbuje pobrać napisy z YouTube przez `youtubei.js` (najszybsze, darmowe) - **tylko dla określonego fragmentu**
+   - **Krok 2**: Jeśli napisy nie są dostępne, pobiera audio przez `yt-dlp` i transkrybuje przez **Groq API** (Whisper-large-v3) - **tylko dla określonego fragmentu**
    - **Krok 3**: Jeśli obie metody nie działają, pokazuje opcję ręcznego wklejenia tekstu
-6. Tekst jest walidowany i zapisywany do bazy
+6. Tekst jest walidowany i zapisywany do bazy z określonym zakresem czasu
 
 ### 2. Dodawanie Materiału PDF
 
@@ -576,23 +582,24 @@ logger.error('Błąd pobierania transkryptu YouTube', {
 
 ### `src/lib/services.ts`
 
-#### `getYouTubeTranscript(url: string, startSeconds: number): Promise<string | null>`
+#### `getYouTubeTranscript(url: string, startSeconds: number, endSeconds?: number): Promise<string | null>`
 
-Pobiera transkrypt z YouTube i filtruje segmenty przed `startSeconds`.
+Pobiera transkrypt z YouTube i filtruje segmenty do określonego zakresu czasu.
 
 ```typescript
 const transcript = await getYouTubeTranscript(
   'https://youtube.com/watch?v=...',
-  600 // Start od 10 minuty
+  600, // Start od 10 minuty
+  900  // Koniec na 15 minucie (opcjonalnie)
 );
 ```
 
-#### `getYouTubeTranscriptHybrid(url: string, startSeconds: number)`
+#### `getYouTubeTranscriptHybrid(url: string, startSeconds: number, endSeconds?: number)`
 
-Hybrydowe podejście - próbuje automatycznie, zwraca informację o potrzebie ręcznego wklejenia.
+Hybrydowe podejście - próbuje automatycznie pobrać transkrypt dla określonego fragmentu, zwraca informację o potrzebie ręcznego wklejenia.
 
 ```typescript
-const result = await getYouTubeTranscriptHybrid(url, 0);
+const result = await getYouTubeTranscriptHybrid(url, 600, 900); // Fragment 10-15 min
 if (result.success) {
   // Użyj result.transcript
 } else if (result.requiresManual) {
@@ -675,9 +682,15 @@ const quiz = await generateQuiz(transcript);
 
 Pobiera wszystkie materiały z bazy.
 
-#### `addYouTubeMaterial(url: string, startMinutes: number, manualText?: string)`
+#### `addYouTubeMaterial(url: string, startMinutes: number, endMinutes?: number, manualText?: string, rewardMinutes?: number)`
 
-Dodaje materiał YouTube. Jeśli `manualText` jest podany, używa go zamiast automatycznego pobierania.
+Dodaje materiał YouTube. 
+- `startMinutes` - Czas startu w minutach
+- `endMinutes` - Czas końca w minutach (opcjonalnie)
+- `manualText` - Ręcznie wklejony transkrypt (opcjonalnie)
+- `rewardMinutes` - Liczba minut nagrody (opcjonalnie, system sugeruje wartość)
+
+Jeśli `manualText` jest podany, używa go zamiast automatycznego pobierania.
 
 #### `addPDFMaterial(file: File, title?: string)`
 
@@ -1033,7 +1046,7 @@ Projekt **BrainGain** jest **KOMPLETNY** i gotowy do użycia:
 
 *Dokumentacja utworzona: 2025-01-28*
 *Ostatnia aktualizacja: 2025-12-21*
-*Wersja projektu: 0.6.2*
+*Wersja projektu: 0.7.0*
 
 ## 🔄 Historia Zmian
 
@@ -1079,7 +1092,8 @@ Projekt **BrainGain** jest **KOMPLETNY** i gotowy do użycia:
 - ✅ Dodano animację confetti przy sukcesie (>= 9/10)
 - ✅ Automatyczne dodawanie 30 minut nagrody po zaliczeniu quizu
 - ✅ Wyświetlanie statusu materiałów: "Do zrobienia", "Zaliczone", "Zablokowane"
-- ✅ Sekcja nauki z iframe YouTube (start od `start_offset`)
+- ✅ Sekcja nauki z iframe YouTube (start od `start_offset`, koniec na `end_offset` jeśli określono)
+- ✅ Informacja o zakresie czasu do nauki (użytkownik widzi że ma się nauczyć tylko fragmentu)
 - ✅ Interfejs quizu z weryfikacją odpowiedzi i uzasadnieniami
 
 ### Wersja 0.2.1 (2025-01-28)
@@ -1198,4 +1212,23 @@ Projekt **BrainGain** jest **KOMPLETNY** i gotowy do użycia:
   - Zaktualizowano eslint-config-next z 16.0.5 do 16.0.10 (kompatybilność)
   - Wszystkie zależności przetestowane: 0 vulnerabilities
   - Projekt gotowy do deploymentu na Railway
+
+### Wersja 0.7.0 (2025-12-21)
+- ✅ **Określanie fragmentu filmu (start i koniec)**:
+  - Dodano kolumnę `end_offset` do tabeli `materials` w bazie danych
+  - Admin może teraz określić zarówno początek jak i koniec filmu do nauki
+  - Zaktualizowano interfejs `Material` w TypeScript (dodano `end_offset`)
+  - Dodano pole "Koniec na minucie" w formularzu YouTube w AdminPanel
+  - **Transkrypcja pobiera tylko określony fragment:**
+    - `getYouTubeTranscript()` filtruje segmenty do zakresu `startSeconds` - `endSeconds`
+    - `getYouTubeTranscriptWithGroq()` filtruje segmenty audio do zakresu `startSeconds` - `endSeconds`
+    - Quiz jest generowany tylko na podstawie fragmentu
+  - **UI dla studenta pokazuje zakres czasu:**
+    - Wyświetlanie zakresu "Fragment: 10:00 - 15:00" zamiast całkowitego czasu trwania
+    - Informacja "Twoje zadanie: obejrzyj i zrozum fragment od X do Y"
+    - Komunikat "Quiz będzie dotyczył tylko tego fragmentu"
+  - **Odtwarzacz YouTube ograniczony do fragmentu:**
+    - Parametr `&end=` w URL embeda YouTube
+    - Film automatycznie zatrzymuje się na określonym czasie końca
+  - Użytkownik wie dokładnie jaki fragment ma się nauczyć (nie cały film)
 

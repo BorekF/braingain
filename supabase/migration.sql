@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS materials (
     content_text TEXT NOT NULL, -- Treść z PDF lub transkrypt z YouTube
     video_url VARCHAR(500), -- URL wideo YouTube (NULL dla PDF)
     start_offset INTEGER DEFAULT 0, -- Czas startu wideo w sekundach (dla YouTube)
+    end_offset INTEGER, -- Czas końca wideo w sekundach (dla YouTube, opcjonalne)
     reward_minutes INTEGER CHECK (reward_minutes > 0), -- Liczba minut nagrody za zaliczenie materiału
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
@@ -114,5 +115,12 @@ ALTER TABLE quizzes DISABLE ROW LEVEL SECURITY;
 -- Uwaga: Jeśli tworzysz nową bazę, dodaj tę kolumnę bezpośrednio w definicji tabeli powyżej
 ALTER TABLE materials 
 ADD COLUMN IF NOT EXISTS reward_minutes INTEGER CHECK (reward_minutes > 0);
+
+-- ============================================
+-- MIGRATION: Add end_offset to materials
+-- ============================================
+-- Dodaj kolumnę end_offset do tabeli materials (dla istniejących baz danych)
+ALTER TABLE materials 
+ADD COLUMN IF NOT EXISTS end_offset INTEGER;
 
 

@@ -208,10 +208,12 @@ export function MaterialPageClient({ material }: MaterialPageClientProps) {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   }
 
-  // YouTube URL z start_offset
+  // YouTube URL z start_offset i end_offset
   const videoId = material.video_url ? extractVideoId(material.video_url) : null;
   const youtubeEmbedUrl = videoId
-    ? `https://www.youtube.com/embed/${videoId}?start=${material.start_offset}`
+    ? `https://www.youtube.com/embed/${videoId}?start=${material.start_offset}${
+        material.end_offset ? `&end=${material.end_offset}` : ''
+      }`
     : null;
   const duration = estimateMaterialDuration(material.content_text, material.type);
 
@@ -252,7 +254,12 @@ export function MaterialPageClient({ material }: MaterialPageClientProps) {
               <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 rounded-full">
                 <Clock className="text-gray-600" size={18} />
                 <span className="text-sm font-semibold text-gray-700">
-                  ~{duration} min
+                  {material.type === 'youtube' && material.end_offset 
+                    ? `Fragment: ${Math.floor(material.start_offset / 60)}:${(material.start_offset % 60).toString().padStart(2, '0')} - ${Math.floor(material.end_offset / 60)}:${(material.end_offset % 60).toString().padStart(2, '0')}`
+                    : material.type === 'youtube' && material.start_offset > 0
+                    ? `Od ${Math.floor(material.start_offset / 60)}:${(material.start_offset % 60).toString().padStart(2, '0')}`
+                    : `~${duration} min`
+                  }
                 </span>
               </div>
               {material.reward_minutes && material.reward_minutes > 0 && (
@@ -277,6 +284,22 @@ export function MaterialPageClient({ material }: MaterialPageClientProps) {
               Sekcja Nauki
             </span>
           </h2>
+
+          {/* Informacja o fragmencie do nauki */}
+          {material.type === 'youtube' && (material.start_offset > 0 || material.end_offset) && (
+            <div className="mb-4 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-xl">
+              <p className="text-sm font-semibold text-blue-900 flex items-center gap-2">
+                <span className="text-xl">📖</span>
+                {material.end_offset 
+                  ? `Twoje zadanie: obejrzyj i zrozum fragment od ${Math.floor(material.start_offset / 60)}:${(material.start_offset % 60).toString().padStart(2, '0')} do ${Math.floor(material.end_offset / 60)}:${(material.end_offset % 60).toString().padStart(2, '0')}`
+                  : `Twoje zadanie: obejrzyj i zrozum film od ${Math.floor(material.start_offset / 60)}:${(material.start_offset % 60).toString().padStart(2, '0')}`
+                }
+              </p>
+              <p className="text-xs text-blue-700 mt-1">
+                Quiz będzie dotyczył tylko tego fragmentu.
+              </p>
+            </div>
+          )}
 
           {material.type === 'youtube' && youtubeEmbedUrl ? (
             <div className="aspect-video rounded-xl overflow-hidden bg-black shadow-lg">
