@@ -31,7 +31,7 @@
 
 ### Technologie
 
-- **Framework**: Next.js 16 (App Router)
+- **Framework**: Next.js 16.0.10 (App Router)
 - **Język**: TypeScript
 - **Baza Danych**: Supabase (PostgreSQL)
 - **Stylizacja**: Tailwind CSS
@@ -1033,7 +1033,7 @@ Projekt **BrainGain** jest **KOMPLETNY** i gotowy do użycia:
 
 *Dokumentacja utworzona: 2025-01-28*
 *Ostatnia aktualizacja: 2025-12-21*
-*Wersja projektu: 0.6.1*
+*Wersja projektu: 0.6.2*
 
 ## 🔄 Historia Zmian
 
@@ -1190,4 +1190,12 @@ Projekt **BrainGain** jest **KOMPLETNY** i gotowy do użycia:
     - Pytania o nastrój, atmosferę lub kontekst produkcji
   - **Dla materiałów nielingwistycznych** zachowuje standardowy tryb pytań (fakty, analizy, szczegóły)
   - Zmiana poprawia jakość quizów dla filmów edukacyjnych o nauce języków obcych
+
+### Wersja 0.6.2 (2025-12-21)
+- ✅ **Aktualizacja bezpieczeństwa Next.js**:
+  - Zaktualizowano Next.js z 16.0.5 do 16.0.10 (łatanie krytycznych luk bezpieczeństwa)
+  - Naprawiono CVE-2025-55183 (MEDIUM), CVE-2025-55184 (HIGH), CVE-2025-66478 (CRITICAL), CVE-2025-67779 (HIGH)
+  - Zaktualizowano eslint-config-next z 16.0.5 do 16.0.10 (kompatybilność)
+  - Wszystkie zależności przetestowane: 0 vulnerabilities
+  - Projekt gotowy do deploymentu na Railway
 
