@@ -9,7 +9,8 @@
 
 BrainGain is an advanced educational platform that motivates students to learn by combining AI-generated quizzes with a reward system. Administrators can easily add educational materials (YouTube videos, PDF documents), while students earn minutes of screen time by successfully completing automatically generated quizzes.
 
-![Dashboard Preview](https://via.placeholder.com/800x400/4F46E5/ffffff?text=BrainGain+Dashboard)
+![Dashboard Preview](./public/screenshots/dashboard.png)
+![Quiz Preview](./public/screenshots/quiz.png)
 
 ---
 
