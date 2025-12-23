@@ -15,7 +15,7 @@ BrainGain is an advanced educational platform that motivates students to learn b
 
 ![Student Dashboard](./public/screenshots/dashboard.png)
 
-**Quiz Flow**
+**Quiz**
 
 ![Quiz Flow](./public/screenshots/quiz.png)
 
@@ -290,13 +290,6 @@ This project is open source and available under the [MIT License](LICENSE).
 
 ---
 
-## 📧 Contact
-
-Your Name - [@yourtwitter](https://twitter.com/yourtwitter) - your.email@example.com
-
-Project Link: [https://github.com/yourusername/braingain](https://github.com/yourusername/braingain)
-
----
 
 <div align="center">
   <strong>Built with ❤️ using Next.js and AI</strong>
