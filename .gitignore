@@ -44,3 +44,9 @@ next-env.d.ts
 # logs (ignoruj zawartość, ale zachowaj katalog i .gitkeep)
 /logs/*
 !/logs/.gitkeep
+
+# Development/AI files (keep locally, don't commit)
+DOCUMENTATION.md
+.cursorrules
+GROQ_SETUP.md
+test-script.ts
