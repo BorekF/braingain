@@ -1,16 +1,17 @@
+// Fallback transcription: download a video's audio with yt-dlp, then run Groq Whisper.
 'use server';
 
 import Groq from 'groq-sdk';
 import YTDlpWrap from 'yt-dlp-wrap';
-import { extractVideoId } from './utils';
+import { extractVideoId, errorMessage } from './utils';
 import { logger } from './logger';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 
-// Lazy Groq client initialization
 let groqClient: Groq | null = null;
 
+// Create the Groq client once and reuse it. Throws if the API key is missing.
 function getGroqClient(): Groq {
   if (!groqClient) {
     const apiKey = process.env.GROQ_API_KEY;
@@ -24,13 +25,7 @@ function getGroqClient(): Groq {
   return groqClient;
 }
 
-/**
- * Downloads audio from YouTube video using yt-dlp
- * @param url - YouTube video URL
- * @param startSeconds - Start time in seconds (optional, for trimming)
- * @param endSeconds - End time in seconds (optional, for trimming)
- * @returns Path to audio file or null on error
- */
+// Download a YouTube video's audio with yt-dlp into a temp file. Returns the path or null.
 export async function downloadYouTubeAudio(
   url: string,
   startSeconds: number = 0,
@@ -77,7 +72,7 @@ export async function downloadYouTubeAudio(
     return fullPath;
   } catch (error) {
     logger.error('Failed to download audio from YouTube', {
-      error: error instanceof Error ? error.message : String(error),
+      error: errorMessage(error),
       stack: error instanceof Error ? error.stack : undefined,
       url,
     });
@@ -85,10 +80,7 @@ export async function downloadYouTubeAudio(
   }
 }
 
-/**
- * Removes audio file from disk
- * @param filePath - Path to file
- */
+// Delete the temp audio file; ignore failures.
 function cleanupAudioFile(filePath: string): void {
   try {
     if (fs.existsSync(filePath)) {
@@ -97,19 +89,13 @@ function cleanupAudioFile(filePath: string): void {
     }
   } catch (error) {
     logger.warn('Failed to delete audio file', {
-      error: error instanceof Error ? error.message : String(error),
+      error: errorMessage(error),
       path: filePath,
     });
   }
 }
 
-/**
- * Transcribes audio using Groq API (Whisper-large-v3)
- * @param audioFilePath - Path to audio file
- * @param startSeconds - Start time in seconds (for segment filtering)
- * @param endSeconds - End time in seconds (optional, for segment filtering)
- * @returns Transcript string or null on error
- */
+// Send the audio to Groq Whisper and return the text within the time range (null on error).
 export async function transcribeWithGroq(
   audioFilePath: string,
   startSeconds: number = 0,
@@ -212,7 +198,7 @@ export async function transcribeWithGroq(
     }
     
     logger.error('Groq transcription failed', {
-      error: error instanceof Error ? error.message : String(error),
+      error: errorMessage(error),
       stack: error instanceof Error ? error.stack : undefined,
       audioFilePath,
     });
@@ -222,13 +208,7 @@ export async function transcribeWithGroq(
   }
 }
 
-/**
- * Full pipeline: downloads audio and transcribes via Groq
- * @param url - YouTube video URL
- * @param startSeconds - Start time in seconds
- * @param endSeconds - End time in seconds (optional)
- * @returns Transcript string or null on error
- */
+// Full fallback pipeline: download the audio, then transcribe it with Groq.
 export async function getYouTubeTranscriptWithGroq(
   url: string,
   startSeconds: number = 0,
@@ -245,7 +225,7 @@ export async function getYouTubeTranscriptWithGroq(
     return transcript;
   } catch (error) {
     logger.error('Groq transcription pipeline failed', {
-      error: error instanceof Error ? error.message : String(error),
+      error: errorMessage(error),
       stack: error instanceof Error ? error.stack : undefined,
       url,
     });
