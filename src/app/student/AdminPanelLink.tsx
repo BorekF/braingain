@@ -1,3 +1,4 @@
+// "Admin Panel" button: a link in normal mode, or a "not available" modal in demo.
 'use client';
 
 import { useState } from 'react';
@@ -6,15 +7,15 @@ import { Settings, Lock } from 'lucide-react';
 
 const IS_DEMO = process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
 
+const buttonClasses =
+  'px-4 py-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl hover:from-blue-600 hover:to-indigo-700 shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 flex items-center justify-center gap-2 font-semibold text-sm sm:text-base';
+
 export function AdminPanelLink() {
   const [showModal, setShowModal] = useState(false);
 
   if (!IS_DEMO) {
     return (
-      <Link
-        href="/admin"
-        className="px-4 py-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl hover:from-blue-600 hover:to-indigo-700 shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 flex items-center justify-center gap-2 font-semibold text-sm sm:text-base"
-      >
+      <Link href="/admin" className={buttonClasses}>
         <Settings size={18} />
         Admin Panel
       </Link>
@@ -23,10 +24,7 @@ export function AdminPanelLink() {
 
   return (
     <>
-      <button
-        onClick={() => setShowModal(true)}
-        className="px-4 py-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl hover:from-blue-600 hover:to-indigo-700 shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 flex items-center justify-center gap-2 font-semibold text-sm sm:text-base"
-      >
+      <button onClick={() => setShowModal(true)} className={buttonClasses}>
         <Settings size={18} />
         Admin Panel
       </button>
