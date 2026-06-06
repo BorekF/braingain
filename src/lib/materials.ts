@@ -1,3 +1,4 @@
+// Add, read and delete learning materials (YouTube + PDF) and save them to the database.
 'use server';
 
 import { supabase } from './supabase';
@@ -6,16 +7,18 @@ import {
   parsePDF,
   processManualText,
 } from './services';
-import { extractVideoId } from './utils';
+import { extractVideoId, errorMessage } from './utils';
 import { logger } from './logger';
 import { PDF_MAX_SIZE_BYTES } from './constants';
 
+// Check the given secret against the admin secret from the env.
 function verifyAdminSecret(secret: string): boolean {
   const expected = process.env.ADMIN_SECRET;
   if (!expected) return false;
   return secret === expected;
 }
 
+// Shape of one material row in the database.
 export interface Material {
   id: string;
   title: string;
@@ -29,12 +32,11 @@ export interface Material {
   updated_at: string;
 }
 
-/**
- * Fetches all materials from the database, newest first.
- * On connection errors, throws; on other errors, returns [] and logs (graceful degradation).
- * (Demo mode with fixed materials is not included in this build; set NEXT_PUBLIC_DEMO_MODE only in demo deployments that include demo data.)
- */
+// Get all materials, newest first. Connection errors throw; other errors just
+// log and return an empty list so the app keeps working.
 export async function getMaterials(): Promise<Material[]> {
+  // This build ships no demo materials, so demo mode returns nothing here.
+  // (Demo deployments seed their own materials and use the cache path in quiz.ts.)
   if (process.env.NEXT_PUBLIC_DEMO_MODE === 'true') {
     return [];
   }
@@ -65,7 +67,7 @@ export async function getMaterials(): Promise<Material[]> {
     return data || [];
   } catch (error: unknown) {
     logger.error('Failed to fetch materials', {
-      error: error instanceof Error ? error.message : String(error),
+      error: errorMessage(error),
       stack: error instanceof Error ? error.stack : undefined,
     });
     if (error instanceof Error && error.message.includes('Unable to connect to the database')) {
@@ -75,9 +77,29 @@ export async function getMaterials(): Promise<Material[]> {
   }
 }
 
-/**
- * Adds a YouTube material: fetches transcript (or uses manual text), then persists to DB.
- */
+// Get a single material by id, or null if it's missing.
+export async function getMaterialById(id: string): Promise<Material | null> {
+  // Same as getMaterials: this build has no demo materials.
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === 'true') {
+    return null;
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('materials')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error || !data) return null;
+    return data as Material;
+  } catch (error: unknown) {
+    logger.error('Failed to fetch material', { error: errorMessage(error), materialId: id });
+    return null;
+  }
+}
+
+// Add a YouTube material: fetch its transcript (or use pasted text), then save it.
 export async function addYouTubeMaterial(
   url: string,
   startMinutes: number = 0,
@@ -128,27 +150,9 @@ export async function addYouTubeMaterial(
           const info = await youtube.getInfo(videoId);
           title = info.basic_info.title || title;
         }
-      } catch (e: any) {
-        const isParserError =
-          e?.name === 'ParserError' ||
-          e?.info !== undefined ||
-          e?.message?.includes('Type mismatch') ||
-          e?.message?.includes('Parser');
-        
-        if (isParserError) {
-          logger.warn('YouTube.js: Parser error while fetching title', {
-            url,
-            error: e?.message || String(e),
-            errorName: e?.name,
-            errorDate: e?.date,
-            errorVersion: e?.version,
-          });
-        } else {
-          logger.debug('Failed to fetch video title', {
-            url,
-            error: e?.message || String(e),
-          });
-        }
+      } catch (e) {
+        // The title is optional (we fall back to a default), so just log it.
+        logger.debug('Failed to fetch video title', { url, error: errorMessage(e) });
       }
     }
 
@@ -199,7 +203,7 @@ export async function addYouTubeMaterial(
     };
   } catch (error: unknown) {
     logger.error('Failed to add YouTube material', {
-      error: error instanceof Error ? error.message : String(error),
+      error: errorMessage(error),
       stack: error instanceof Error ? error.stack : undefined,
       url,
     });
@@ -210,7 +214,7 @@ export async function addYouTubeMaterial(
   }
 }
 
-/** Adds a PDF material: uploads to storage, extracts text, persists to DB. */
+// Add a PDF material: upload the file, pull out its text, then save it.
 export async function addPDFMaterial(
   file: File,
   title?: string,
@@ -248,7 +252,7 @@ export async function addPDFMaterial(
       };
     }
 
-    const materialTitle = title || file.name.replace('.pdf', '');
+    const materialTitle = title || file.name.replace(/\.pdf$/i, '');
     const fileExt = file.name.split('.').pop() || 'pdf';
     const fileName = `${Date.now()}-${materialTitle.replace(/[^a-z0-9]/gi, '_')}.${fileExt}`;
     const filePath = `pdfs/${fileName}`;
@@ -320,7 +324,7 @@ export async function addPDFMaterial(
     };
   } catch (error: unknown) {
     logger.error('Failed to add PDF material', {
-      error: error instanceof Error ? error.message : String(error),
+      error: errorMessage(error),
       stack: error instanceof Error ? error.stack : undefined,
       fileName: file.name,
     });
@@ -331,9 +335,7 @@ export async function addPDFMaterial(
   }
 }
 
-/**
- * Deletes a material by id. Requires admin secret.
- */
+// Delete a material by id (admin only).
 export async function deleteMaterial(
   id: string,
   adminSecret?: string
@@ -362,7 +364,7 @@ export async function deleteMaterial(
     return { success: true };
   } catch (error: unknown) {
     logger.error('Failed to delete material', {
-      error: error instanceof Error ? error.message : String(error),
+      error: errorMessage(error),
       stack: error instanceof Error ? error.stack : undefined,
       materialId: id,
     });
