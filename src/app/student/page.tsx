@@ -1,3 +1,4 @@
+// Student dashboard: lists every material with its status and the earned minutes.
 import { getMaterials } from '@/lib/materials';
 import { getTotalRewards } from '@/lib/rewards';
 import { checkMaterialPassed } from '@/lib/quiz';
@@ -8,15 +9,16 @@ import { AdminPanelLink } from './AdminPanelLink';
 
 export const dynamic = 'force-dynamic';
 
-async function getMaterialStatus(materialId: string): Promise<'completed' | 'available' | 'cooldown'> {
+async function getMaterialStatus(materialId: string): Promise<'completed' | 'available'> {
   const passed = await checkMaterialPassed(materialId);
-  if (passed) return 'completed';
-  return 'available';
+  return passed ? 'completed' : 'available';
 }
 
 export default async function StudentDashboard() {
-  const materials = await getMaterials();
-  const totalRewards = await getTotalRewards();
+  const [materials, totalRewards] = await Promise.all([
+    getMaterials(),
+    getTotalRewards(),
+  ]);
 
   const materialsWithStatus = await Promise.all(
     materials.map(async (material) => ({
@@ -93,8 +95,6 @@ export default async function StudentDashboard() {
                     className={`bg-white/90 backdrop-blur-sm rounded-2xl shadow-md p-5 sm:p-6 hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1 ${
                       material.status === 'completed'
                         ? 'border-2 border-emerald-400 bg-gradient-to-br from-emerald-50/50 to-white'
-                        : material.status === 'cooldown'
-                        ? 'border-2 border-orange-300 opacity-80'
                         : 'border-2 border-transparent hover:border-indigo-300 bg-gradient-to-br from-white to-indigo-50/30'
                     }`}
                   >
@@ -107,19 +107,9 @@ export default async function StudentDashboard() {
                         } transition-colors`}
                       >
                         {material.type === 'youtube' ? (
-                          <Youtube
-                            className={`${
-                              material.type === 'youtube'
-                                ? 'text-red-600'
-                                : 'text-blue-600'
-                            }`}
-                            size={28}
-                          />
+                          <Youtube className="text-red-600" size={28} />
                         ) : (
-                          <FileText
-                            className="text-blue-600"
-                            size={28}
-                          />
+                          <FileText className="text-blue-600" size={28} />
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
@@ -151,36 +141,23 @@ export default async function StudentDashboard() {
                     {/* Status */}
                     <div className="flex items-center gap-2 mb-4">
                       {material.status === 'completed' ? (
-                        <>
-                          <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-100 rounded-full">
-                            <CheckCircle2 className="text-emerald-600" size={18} />
-                            <span className="text-emerald-700 font-semibold text-sm">
-                              Completed
-                            </span>
-                          </div>
-                        </>
-                      ) : material.status === 'cooldown' ? (
-                        <>
-                          <div className="flex items-center gap-2 px-3 py-1.5 bg-orange-100 rounded-full">
-                            <Clock className="text-orange-600" size={18} />
-                            <span className="text-orange-700 font-semibold text-sm">
-                              Locked
-                            </span>
-                          </div>
-                        </>
+                        <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-100 rounded-full">
+                          <CheckCircle2 className="text-emerald-600" size={18} />
+                          <span className="text-emerald-700 font-semibold text-sm">
+                            Completed
+                          </span>
+                        </div>
                       ) : (
-                        <>
-                          <div className="flex items-center gap-2 px-3 py-1.5 bg-indigo-100 rounded-full">
-                            <div className="w-2 h-2 bg-indigo-500 rounded-full animate-pulse"></div>
-                            <span className="text-indigo-700 font-semibold text-sm">
-                              To do
-                            </span>
-                          </div>
-                        </>
+                        <div className="flex items-center gap-2 px-3 py-1.5 bg-indigo-100 rounded-full">
+                          <div className="w-2 h-2 bg-indigo-500 rounded-full animate-pulse"></div>
+                          <span className="text-indigo-700 font-semibold text-sm">
+                            To do
+                          </span>
+                        </div>
                       )}
                     </div>
 
-                    {/* Informacje dodatkowe */}
+                    {/* Extra info */}
                     <div className="pt-4 border-t border-gray-100">
                       <p className="text-xs text-gray-500">
                         Added:{' '}
