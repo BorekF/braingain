@@ -1,3 +1,11 @@
+// Small helper functions shared across the app.
+
+// Turn any thrown value into a plain text message.
+export function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+// Pull the video id out of a YouTube link (handles a few link formats).
 export function extractVideoId(url: string): string | null {
   const patterns = [
     /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/,
@@ -14,6 +22,7 @@ export function extractVideoId(url: string): string | null {
   return null;
 }
 
+// Rough guess of how long a material takes, based on its word count.
 export function estimateMaterialDuration(
   contentText: string,
   type: 'youtube' | 'pdf'
@@ -28,11 +37,8 @@ export function estimateMaterialDuration(
   return Math.max(1, minutes);
 }
 
-/**
- * Reward minutes scale with duration but with a decreasing coefficient
- * so longer materials give proportionally fewer bonus minutes.
- * coefficient = 2.0 - 0.0125 * duration  (e.g. 5 min -> 10, 10 min -> 18, 20 min -> 35)
- */
+// Turn material length into reward minutes. Longer materials give a bit less
+// per minute, so the reward grows slower the longer the material is.
 export function calculateRewardMinutes(durationMinutes: number): number {
   const coefficient = 2.0 - 0.0125 * durationMinutes;
   let reward = durationMinutes * coefficient;

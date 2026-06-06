@@ -1,3 +1,4 @@
+// All the values we might want to tweak (limits, timers, thresholds) in one place.
 export const PDF_MAX_SIZE_BYTES = 10 * 1024 * 1024;
 export const MESSAGE_DISPLAY_MS_SUCCESS = 5000;
 export const MESSAGE_DISPLAY_MS_ERROR = 10000;
