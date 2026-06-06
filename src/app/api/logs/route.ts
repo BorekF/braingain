@@ -1,3 +1,4 @@
+// The only REST route: returns recent app logs (admin-only), or clears them.
 import { NextResponse } from 'next/server';
 import { getRecentLogs, clearLogs } from '@/lib/logger';
 
