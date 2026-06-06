@@ -9,3 +9,4 @@ export const CONFETTI_DURATION_MS = 5000;
 export const QUESTION_TIMER_SECONDS = 30;
 export const COOLDOWN_MINUTES = 10;
 export const PASSING_PERCENTAGE = 0.9;
+export const GROQ_MAX_AUDIO_MB = 25;

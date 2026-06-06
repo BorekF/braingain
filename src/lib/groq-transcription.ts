@@ -5,6 +5,7 @@ import Groq from 'groq-sdk';
 import YTDlpWrap from 'yt-dlp-wrap';
 import { extractVideoId, errorMessage } from './utils';
 import { logger } from './logger';
+import { GROQ_MAX_AUDIO_MB } from './constants';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -108,17 +109,16 @@ export async function transcribeWithGroq(
       throw new Error(`Audio file does not exist: ${audioFilePath}`);
     }
 
-    // Groq has 25MB limit
     const stats = fs.statSync(audioFilePath);
     const fileSizeMB = stats.size / (1024 * 1024);
-    
-    if (fileSizeMB > 25) {
+
+    if (fileSizeMB > GROQ_MAX_AUDIO_MB) {
       logger.warn('Audio file is too large for Groq API', {
         size: fileSizeMB,
         path: audioFilePath,
       });
       throw new Error(
-        `Audio file is too large (${fileSizeMB.toFixed(2)} MB). Maximum: 25 MB. ` +
+        `Audio file is too large (${fileSizeMB.toFixed(2)} MB). Maximum: ${GROQ_MAX_AUDIO_MB} MB. ` +
         'Try using a shorter video segment.'
       );
     }
