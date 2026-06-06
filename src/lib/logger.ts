@@ -1,6 +1,8 @@
+// File-based logger: writes to logs/app.log and mirrors console output there too.
 import fs from 'fs';
 import path from 'path';
 
+// Pick the logs directory under the project root.
 function getLogDir() {
   const projectDir = process.cwd();
   const logDir = path.join(projectDir, 'logs');
@@ -47,12 +49,12 @@ if (!fs.existsSync(LOG_DIR)) {
   }
 }
 
-/** Checks if message should be ignored */
+// True for noisy messages we don't want in the log (e.g. source-map warnings).
 function shouldIgnoreMessage(message: string): boolean {
   return IGNORE_PATTERNS.some((pattern) => pattern.test(message));
 }
 
-/** Formats stack trace into readable lines */
+// Indent each stack-trace line so it reads nicely in the log file.
 function formatStackTrace(stack: string | undefined): string {
   if (!stack) return '';
   
@@ -60,7 +62,7 @@ function formatStackTrace(stack: string | undefined): string {
   return '\n' + lines.map((line) => `    ${line}`).join('\n');
 }
 
-/** Checks for duplicate and returns formatted message */
+// Collapse repeated messages within a short window into a single entry.
 function checkDuplicate(message: string): { isDuplicate: boolean; formattedMessage: string } {
   const now = Date.now();
   const cacheKey = message.substring(0, 200);
@@ -97,7 +99,7 @@ function checkDuplicate(message: string): { isDuplicate: boolean; formattedMessa
   return { isDuplicate: false, formattedMessage: message };
 }
 
-/** Writes log to file with timestamp */
+// Write one line to the log file: timestamp, level, message and optional data.
 function writeLog(level: string, message: string, data?: any) {
   if (isWritingLog) {
     return;
@@ -148,7 +150,7 @@ function writeLog(level: string, message: string, data?: any) {
   }
 }
 
-/** Trims log file to last MAX_LINES */
+// Keep only the last MAX_LINES lines so the log file doesn't grow forever.
 function trimLogFile() {
   try {
     if (!fs.existsSync(LOG_FILE)) {
@@ -178,7 +180,7 @@ let originalConsole: {
 
 let consoleIntercepted = false;
 
-/** Formats console args to string (like console.log) */
+// Turn console arguments into one string, like console.log would print them.
 function formatConsoleArgs(...args: any[]): string {
   return args
     .map((arg) => {
@@ -197,7 +199,7 @@ function formatConsoleArgs(...args: any[]): string {
     .join(' ');
 }
 
-/** Overwrites console methods to copy output to log file */
+// Patch console.* so anything logged to the console is also saved to the file.
 function setupConsoleInterception() {
   if (consoleIntercepted || typeof window !== 'undefined') {
     return;
@@ -325,7 +327,7 @@ if (process.env.NODE_ENV === 'development') {
   }
 }
 
-/** Reads last N lines from log file */
+// Read the last N lines from the log file (used by the logs API).
 export function getRecentLogs(lines: number = 100): string[] {
   try {
     if (!fs.existsSync(LOG_FILE)) {
@@ -345,7 +347,7 @@ export function getRecentLogs(lines: number = 100): string[] {
   }
 }
 
-/** Clears log file */
+// Empty the log file (used by the logs API).
 export function clearLogs(): void {
   try {
     if (fs.existsSync(LOG_FILE)) {
