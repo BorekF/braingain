@@ -1,30 +1,30 @@
+// Heavy lifting: OpenAI quiz generation, YouTube transcripts and PDF text extraction.
 'use server';
 
 import { Innertube } from 'youtubei.js';
 import OpenAI from 'openai';
-import { extractVideoId } from './utils';
+import { extractVideoId, errorMessage } from './utils';
 import { logger } from './logger';
 import { getYouTubeTranscriptWithGroq } from './groq-transcription';
 
-function getOpenAIClient(): OpenAI {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    throw new Error(
-      'OPENAI_API_KEY is not set in environment variables. Check your .env.local file.'
-    );
-  }
-  return new OpenAI({ apiKey });
-}
-
 let openai: OpenAI | null = null;
+
+// Create the OpenAI client once and reuse it. Throws if the API key is missing.
 function getOpenAI(): OpenAI {
   if (!openai) {
-    openai = getOpenAIClient();
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      throw new Error(
+        'OPENAI_API_KEY is not set in environment variables. Check your .env.local file.'
+      );
+    }
+    openai = new OpenAI({ apiKey });
   }
   return openai;
 }
 
-/** Fetches YouTube transcript and filters segments to the given time range. Returns joined text or null on error. */
+// Fetch a YouTube transcript and keep only the segments within the time range.
+// Returns the joined text, or null on any failure (UI then offers manual paste).
 export async function getYouTubeTranscript(
   url: string,
   startSeconds: number = 0,
@@ -37,52 +37,8 @@ export async function getYouTubeTranscript(
     }
 
     const youtube = await Innertube.create();
-    
-    let info;
-    try {
-      info = await youtube.getInfo(videoId);
-    } catch (infoError: any) {
-      logger.warn('Failed to fetch YouTube video info', {
-        url,
-        videoId,
-        error: infoError?.message || String(infoError),
-        errorName: infoError?.name,
-      });
-      throw infoError;
-    }
-    
-    let transcriptData;
-    try {
-      transcriptData = await info.getTranscript();
-    } catch (transcriptError: any) {
-      // YouTube.js errors have date, version, info structure
-      const isParserError =
-        transcriptError?.name === 'ParserError' ||
-        transcriptError?.info !== undefined ||
-        transcriptError?.message?.includes('Type mismatch') ||
-        transcriptError?.message?.includes('Parser');
-      
-      if (isParserError) {
-        logger.warn('YouTube.js: Transcript parser error (normal for some videos)', {
-          url,
-          videoId,
-          error: transcriptError?.message || String(transcriptError),
-          errorName: transcriptError?.name,
-          errorDate: transcriptError?.date,
-          errorVersion: transcriptError?.version,
-          errorInfo: transcriptError?.info,
-        });
-      } else {
-        logger.error('Failed to fetch YouTube transcript', {
-          url,
-          videoId,
-          error: transcriptError?.message || String(transcriptError),
-          errorName: transcriptError?.name,
-          stack: transcriptError?.stack,
-        });
-      }
-      throw transcriptError;
-    }
+    const info = await youtube.getInfo(videoId);
+    const transcriptData = await info.getTranscript();
 
     if (!transcriptData?.transcript?.content?.body?.initial_segments) {
       throw new Error('Transcript is not available for this video');
@@ -98,58 +54,32 @@ export async function getYouTubeTranscript(
 
     const startMs = startSeconds * 1000;
     const endMs = endSeconds !== undefined ? endSeconds * 1000 : undefined;
-    
+
     const filteredSegments = segments.filter((seg: any) => {
       const segmentEnd = seg.start + seg.duration;
-      if (segmentEnd < startMs) {
-        return false;
-      }
-      if (endMs !== undefined && seg.start >= endMs) {
-        return false;
-      }
+      if (segmentEnd < startMs) return false;
+      if (endMs !== undefined && seg.start >= endMs) return false;
       return true;
     });
 
     if (filteredSegments.length === 0) {
-      const rangeDesc = endSeconds !== undefined 
-        ? `in range ${startSeconds}s - ${endSeconds}s` 
-        : `after ${startSeconds}s`;
+      const rangeDesc =
+        endSeconds !== undefined
+          ? `in range ${startSeconds}s - ${endSeconds}s`
+          : `after ${startSeconds}s`;
       throw new Error(`No transcript segments ${rangeDesc}`);
     }
 
-    const transcript = filteredSegments.map((seg: any) => seg.text).join(' ');
-
-    return transcript;
-  } catch (error: any) {
-    // YouTube.js errors have date/version/info structure; parser errors are common for some videos
-    const isParserError =
-      error?.message?.includes('Type mismatch') ||
-      error?.message?.includes('Parser') ||
-      error?.name === 'ParserError' ||
-      (error?.info && typeof error.info === 'object');
-
-    if (isParserError) {
-      logger.warn('YouTube.js: Could not parse video structure (normal for some videos)', {
-        url,
-        error: error?.message || String(error),
-        errorName: error?.name,
-        errorDate: error?.date,
-        errorVersion: error?.version,
-      });
-    } else {
-      logger.error('Failed to fetch YouTube transcript', {
-        url,
-        error: error?.message || String(error),
-        errorName: error?.name,
-        stack: error?.stack,
-        fullError: error,
-      });
-    }
-    return null; // Signals UI to show manual paste field
+    return filteredSegments.map((seg: any) => seg.text).join(' ');
+  } catch (error) {
+    // Failing here is normal for some videos (YouTube blocks captions); the
+    // caller then falls back to Groq ASR or manual paste.
+    logger.warn('Could not fetch YouTube transcript', { url, error: errorMessage(error) });
+    return null;
   }
 }
 
-/** Extracts text from a PDF file. Returns null on error. */
+// Extract selectable text from a PDF file. Returns null on error (no OCR).
 export async function parsePDF(file: File): Promise<string | null> {
   try {
     // pdf-parse requires browser APIs (DOMMatrix, ImageData, Path2D) not available in Node.js
@@ -614,18 +544,15 @@ export async function parsePDF(file: File): Promise<string | null> {
     return extractedText;
   } catch (error) {
     logger.error('PDF parsing failed', {
-      error: error instanceof Error ? error.message : String(error),
+      error: errorMessage(error),
       stack: error instanceof Error ? error.stack : undefined,
     });
     return null;
   }
 }
 
-/**
- * Quiz question (canonical English schema).
- * Note: We still accept legacy Polish keys from older data / LLM outputs
- * and normalize them to this schema in `generateQuiz`.
- */
+// One quiz question. Keys are English; generateQuiz also accepts and normalizes
+// legacy Polish keys coming from older data or model output.
 export interface QuizQuestion {
   question: string;
   answers: string[];
@@ -633,14 +560,13 @@ export interface QuizQuestion {
   explanation?: string; // Optional explanation (2-3 sentences)
 }
 
-/**
- * Quiz (canonical English schema).
- */
+// A generated quiz: just a list of questions.
 export interface Quiz {
   questions: QuizQuestion[];
 }
 
-/** Recursively normalizes keys and string values (removes HTML, underscores, markdown). Used after JSON parse. */
+// Recursively strip HTML tags, underscores and markdown from keys and string
+// values. Run on the parsed JSON before reading the quiz.
 function cleanObjectKeys(obj: any): any {
   if (obj === null || obj === undefined) {
     return obj;
@@ -684,16 +610,8 @@ function cleanObjectKeys(obj: any): any {
   return obj;
 }
 
-function shuffleArray<T>(array: T[]): T[] {
-  const shuffled = [...array];
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-  }
-  return shuffled;
-}
-
-/** Detects if material is about foreign language learning using OpenAI. Uses first ~2000 chars. */
+// Ask OpenAI whether the material teaches a foreign language, so the quiz prompt
+// can be tailored. Looks at roughly the first 2000 characters.
 async function detectLanguageLearningMaterial(text: string): Promise<{
   isLanguageLearning: boolean;
   targetLanguage?: string;
@@ -767,14 +685,12 @@ ${textSample}
       details: result.details || undefined,
     };
   } catch (error) {
-    logger.error('Failed to detect material type', {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    return { isLanguageLearning: false }; // graceful degradation on error
+    logger.error('Failed to detect material type', { error: errorMessage(error) });
+    return { isLanguageLearning: false }; // on error, assume it's not language-learning
   }
 }
 
-/** Generates a 10-question quiz from text using OpenAI. Returns null on error. */
+// Generate a 10-question quiz from the text with OpenAI. Returns null on error.
 export async function generateQuiz(text: string): Promise<Quiz | null> {
   try {
     if (!text || text.trim().length === 0) {
@@ -909,12 +825,10 @@ ${text}
       quiz = JSON.parse(jsonText);
     } catch (parseError) {
       logger.error('Failed to parse JSON from OpenAI', {
-        error: parseError instanceof Error ? parseError.message : String(parseError),
+        error: errorMessage(parseError),
         jsonTextSample: jsonText.substring(0, 500),
       });
-      throw new Error(
-        `JSON parse error: ${parseError instanceof Error ? parseError.message : String(parseError)}`
-      );
+      throw new Error(`JSON parse error: ${errorMessage(parseError)}`);
     }
 
     if (quiz && typeof quiz === 'object') {
@@ -1054,14 +968,15 @@ ${text}
     return finalQuiz;
   } catch (error) {
     logger.error('Quiz generation failed', {
-      error: error instanceof Error ? error.message : String(error),
+      error: errorMessage(error),
       stack: error instanceof Error ? error.stack : undefined,
     });
     return null;
   }
 }
 
-/** Validates and cleans manually pasted text (fallback when auto-fetch fails). Returns null if invalid. */
+// Validate and clean text the admin pasted by hand (used when auto-fetch fails).
+// Returns null if it's too short or not a string.
 export async function processManualText(text: string): Promise<string | null> {
   if (!text || typeof text !== 'string') {
     return null;
@@ -1087,7 +1002,7 @@ export async function processManualText(text: string): Promise<string | null> {
   return cleaned;
 }
 
-/** Tries YouTube transcript first, then Groq ASR; returns requiresManual if both fail. */
+// Try the YouTube transcript first, then Groq ASR; ask for manual paste if both fail.
 export async function getYouTubeTranscriptHybrid(
   url: string,
   startSeconds: number = 0,
@@ -1127,10 +1042,7 @@ export async function getYouTubeTranscriptHybrid(
       };
     }
   } catch (groqError) {
-    logger.warn('Groq transcription failed', {
-      error: groqError instanceof Error ? groqError.message : String(groqError),
-      url,
-    });
+    logger.warn('Groq transcription failed', { error: errorMessage(groqError), url });
   }
 
   logger.warn('All automatic methods failed; manual transcript paste required', { url });
