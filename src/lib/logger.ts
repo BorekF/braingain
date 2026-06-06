@@ -2,22 +2,7 @@
 import fs from 'fs';
 import path from 'path';
 
-// Pick the logs directory under the project root.
-function getLogDir() {
-  const projectDir = process.cwd();
-  const logDir = path.join(projectDir, 'logs');
-
-  if (projectDir.endsWith('braingain') && !fs.existsSync(logDir)) {
-    const parentDir = path.join(projectDir, '..', 'logs');
-    if (fs.existsSync(path.join(projectDir, '..'))) {
-      return parentDir;
-    }
-  }
-  
-  return logDir;
-}
-
-const LOG_DIR = getLogDir();
+const LOG_DIR = path.join(process.cwd(), 'logs');
 const LOG_FILE = path.join(LOG_DIR, 'app.log');
 const MAX_LINES = 1000;
 
@@ -324,6 +309,7 @@ if (process.env.NODE_ENV === 'development') {
       cwd: process.cwd(),
     });
   } catch (e) {
+    // The init log must never crash the app.
   }
 }
 
