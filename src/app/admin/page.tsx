@@ -1,3 +1,4 @@
+// Admin login gate: checks the saved secret, shows a password form, then the panel.
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -11,13 +12,11 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const storedSecret = localStorage.getItem('adminSecret');
-      if (storedSecret) {
-        verifyPassword(storedSecret);
-      } else {
-        setLoading(false);
-      }
+    const storedSecret = localStorage.getItem('adminSecret');
+    if (storedSecret) {
+      verifyPassword(storedSecret);
+    } else {
+      setLoading(false);
     }
   }, []);
 
@@ -26,15 +25,11 @@ export default function AdminPage() {
       const response = await fetch(`/api/logs?lines=1&secret=${encodeURIComponent(providedPassword)}`);
 
       if (response.ok) {
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('adminSecret', providedPassword);
-        }
+        localStorage.setItem('adminSecret', providedPassword);
         setIsAuthenticated(true);
         setError('');
       } else {
-        if (typeof window !== 'undefined') {
-          localStorage.removeItem('adminSecret');
-        }
+        localStorage.removeItem('adminSecret');
         setIsAuthenticated(false);
         setError(response.status === 401 ? 'Incorrect password' : 'Verification failed');
       }
@@ -54,9 +49,7 @@ export default function AdminPage() {
   }
 
   function handleLogout() {
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('adminSecret');
-    }
+    localStorage.removeItem('adminSecret');
     setIsAuthenticated(false);
     setPassword('');
     setError('');
