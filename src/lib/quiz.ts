@@ -1,12 +1,12 @@
+// Quiz flow: cooldown checks, generating quizzes, and scoring attempts + rewards.
 'use server';
 
 import { headers } from 'next/headers';
 import { supabase } from './supabase';
 import { generateQuiz, type Quiz } from './services';
-import { getMaterials } from './materials';
-import { calculateRewardMinutes } from './utils';
+import { getMaterialById } from './materials';
+import { calculateRewardMinutes, estimateMaterialDuration, errorMessage } from './utils';
 import { logger } from './logger';
-
 import { COOLDOWN_MINUTES, PASSING_PERCENTAGE } from './constants';
 
 const COOLDOWN_SECONDS = COOLDOWN_MINUTES * 60;
@@ -15,12 +15,14 @@ const RATE_LIMIT_MAX = parseInt(process.env.DEMO_RATE_LIMIT_MAX || '5', 10);
 const RATE_LIMIT_WINDOW_HOURS = 24;
 
 
+// Whether a quiz can be attempted now, and how long is left if not.
 export interface CooldownStatus {
   allowed: boolean;
   remainingSeconds?: number;
   lastAttempt?: string;
 }
 
+// Outcome of a submitted quiz.
 export interface QuizResult {
   success: boolean;
   score?: number;
@@ -31,6 +33,7 @@ export interface QuizResult {
   totalQuestions?: number;
 }
 
+// Best-effort client IP from request headers (used for demo rate limiting).
 async function getClientIp(): Promise<string> {
   const headersList = await headers();
   return (
@@ -40,6 +43,7 @@ async function getClientIp(): Promise<string> {
   );
 }
 
+// Count this IP's recent quiz generations and allow or deny against the limit.
 async function checkAndIncrementRateLimit(
   ip: string
 ): Promise<{ allowed: boolean; remaining: number }> {
@@ -64,13 +68,14 @@ async function checkAndIncrementRateLimit(
     return { allowed: true, remaining: RATE_LIMIT_MAX - currentCount - 1 };
   } catch (error) {
     logger.warn('Rate limit check failed, allowing request', {
-      error: error instanceof Error ? error.message : String(error),
+      error: errorMessage(error),
       ip,
     });
     return { allowed: true, remaining: RATE_LIMIT_MAX };
   }
 }
 
+// Read a previously generated quiz for this material, if any (demo mode).
 async function getCachedQuiz(materialId: string): Promise<Quiz | null> {
   try {
     const { data, error } = await supabase
@@ -86,6 +91,7 @@ async function getCachedQuiz(materialId: string): Promise<Quiz | null> {
   }
 }
 
+// Save a generated quiz so it can be reused (demo mode).
 async function cacheQuiz(materialId: string, quiz: Quiz): Promise<void> {
   try {
     await supabase
@@ -96,13 +102,13 @@ async function cacheQuiz(materialId: string, quiz: Quiz): Promise<void> {
       );
   } catch (error) {
     logger.warn('Failed to cache quiz', {
-      error: error instanceof Error ? error.message : String(error),
+      error: errorMessage(error),
       materialId,
     });
   }
 }
 
-/** Checks if quiz can be attempted (cooldown after failed attempt). */
+// Can the quiz be attempted, or is the student still in cooldown after a fail?
 export async function checkCooldown(materialId: string): Promise<CooldownStatus> {
   try {
     const { data, error } = await supabase
@@ -144,14 +150,14 @@ export async function checkCooldown(materialId: string): Promise<CooldownStatus>
     };
   } catch (error) {
     logger.error('Failed to check cooldown', {
-      error: error instanceof Error ? error.message : String(error),
+      error: errorMessage(error),
       materialId,
     });
     return { allowed: true };
   }
 }
 
-/** Checks if material was already passed. */
+// Has this material already been passed before?
 export async function checkMaterialPassed(materialId: string): Promise<boolean> {
   try {
     const { data, error } = await supabase
@@ -173,14 +179,14 @@ export async function checkMaterialPassed(materialId: string): Promise<boolean> 
     return !!data;
   } catch (error) {
     logger.error('Failed to check material completion', {
-      error: error instanceof Error ? error.message : String(error),
+      error: errorMessage(error),
       materialId,
     });
     return false;
   }
 }
 
-/** Generates quiz for material (checks cooldown, serves from cache or generates via OpenAI). */
+// Start a quiz: check cooldown, find the material, then generate the quiz.
 export async function startQuiz(materialId: string): Promise<{
   success: boolean;
   quiz?: Quiz;
@@ -197,8 +203,7 @@ export async function startQuiz(materialId: string): Promise<{
       };
     }
 
-    const materials = await getMaterials();
-    const material = materials.find((m) => m.id === materialId);
+    const material = await getMaterialById(materialId);
     if (!material) {
       return {
         success: false,
@@ -261,7 +266,7 @@ export async function startQuiz(materialId: string): Promise<{
     };
   } catch (error) {
     logger.error('Failed to generate quiz', {
-      error: error instanceof Error ? error.message : String(error),
+      error: errorMessage(error),
       materialId,
       stack: error instanceof Error ? error.stack : undefined,
     });
@@ -272,29 +277,20 @@ export async function startQuiz(materialId: string): Promise<{
   }
 }
 
-/**
- * Verifies answers against the displayed quiz and persists the attempt.
- */
+// Score the answers, save the attempt, and grant the reward if passed.
 export async function submitQuiz(
   materialId: string,
   answers: number[],
   quiz: Quiz
 ): Promise<QuizResult> {
   try {
-    const materials = await getMaterials();
-    const material = materials.find((m) => m.id === materialId);
+    const material = await getMaterialById(materialId);
     if (!material) {
       return {
         success: false,
         error: 'Material not found',
       };
     }
-
-    const { estimateMaterialDuration } = await import('./utils');
-    const materialDuration = estimateMaterialDuration(
-      material.content_text,
-      material.type
-    );
 
     if (answers.length !== quiz.questions.length) {
       return {
@@ -303,14 +299,11 @@ export async function submitQuiz(
       };
     }
 
-    let correctCount = 0;
-    for (let i = 0; i < quiz.questions.length; i++) {
-      if (answers[i] === quiz.questions[i].correct_answer) {
-        correctCount++;
-      }
-    }
-
-    const score = correctCount;
+    const score = quiz.questions.reduce(
+      (count, question, i) =>
+        answers[i] === question.correct_answer ? count + 1 : count,
+      0
+    );
     const totalQuestions = quiz.questions.length;
     const passingScore = Math.floor(totalQuestions * PASSING_PERCENTAGE);
     const passed = score >= passingScore;
@@ -345,12 +338,14 @@ export async function submitQuiz(
         .single();
 
       if (!existingReward) {
-        let finalReward: number;
-        if (material.reward_minutes && material.reward_minutes > 0) {
-          finalReward = material.reward_minutes;
-        } else {
-          finalReward = calculateRewardMinutes(materialDuration);
-        }
+        // Use the admin-set reward when provided, otherwise derive it from the
+        // estimated material duration.
+        const finalReward =
+          material.reward_minutes && material.reward_minutes > 0
+            ? material.reward_minutes
+            : calculateRewardMinutes(
+                estimateMaterialDuration(material.content_text, material.type)
+              );
 
         const { error: rewardError } = await supabase.from('rewards').insert({
           material_id: materialId,
@@ -381,7 +376,7 @@ export async function submitQuiz(
     };
   } catch (error) {
     logger.error('Quiz verification failed', {
-      error: error instanceof Error ? error.message : String(error),
+      error: errorMessage(error),
       materialId,
       stack: error instanceof Error ? error.stack : undefined,
     });
