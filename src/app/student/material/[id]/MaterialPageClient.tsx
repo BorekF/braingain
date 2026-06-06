@@ -1,3 +1,4 @@
+// Quiz flow for one material: player, timed questions, scoring and the result screen.
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -146,6 +147,7 @@ export function MaterialPageClient({ material }: MaterialPageClientProps) {
 
   async function handleStartQuiz() {
     setLoading(true);
+    setSubmitError(null);
     try {
       const result = await startQuiz(material.id);
       if (result.success && result.quiz) {
@@ -162,10 +164,10 @@ export function MaterialPageClient({ material }: MaterialPageClientProps) {
           setRemainingSeconds(result.cooldown.remainingSeconds);
         }
       } else {
-        alert(result.error || 'Failed to start the quiz');
+        setSubmitError(result.error || 'Failed to start the quiz');
       }
     } catch (error) {
-      alert('Unexpected error');
+      setSubmitError('Unexpected error. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -436,11 +438,11 @@ export function MaterialPageClient({ material }: MaterialPageClientProps) {
           ) : quizSubmitted ? (
             /* Results view: all questions */
             <div className="space-y-6">
-              {quiz?.questions.map((pytanie: QuizQuestion, index: number) => (
+              {quiz?.questions.map((question: QuizQuestion, index: number) => (
                 <div
                   key={index}
                   className={`border-2 rounded-xl p-5 sm:p-6 transition-all ${
-                    answers[index] === pytanie.correct_answer
+                    answers[index] === question.correct_answer
                       ? 'border-emerald-400 bg-gradient-to-br from-emerald-50 to-green-50 shadow-md'
                       : 'border-red-300 bg-gradient-to-br from-red-50 to-pink-50 shadow-md'
                   }`}
@@ -449,12 +451,12 @@ export function MaterialPageClient({ material }: MaterialPageClientProps) {
                     <span className="inline-flex items-center justify-center w-8 h-8 bg-indigo-100 text-indigo-700 rounded-lg mr-3 font-bold">
                       {index + 1}
                     </span>
-                    {pytanie.question}
+                    {question.question}
                   </h3>
                   <div className="space-y-3">
-                    {pytanie.answers.map((odpowiedz, answerIndex) => {
+                    {question.answers.map((answer, answerIndex) => {
                       const isSelected = answers[index] === answerIndex;
-                      const isCorrect = answerIndex === pytanie.correct_answer;
+                      const isCorrect = answerIndex === question.correct_answer;
                       const isWrong = isSelected && !isCorrect;
 
                       return (
@@ -473,7 +475,7 @@ export function MaterialPageClient({ material }: MaterialPageClientProps) {
                             <span className="font-bold text-lg">
                               {String.fromCharCode(65 + answerIndex)}.
                             </span>
-                            <span className="flex-1">{odpowiedz}</span>
+                            <span className="flex-1">{answer}</span>
                             {isCorrect && (
                               <CheckCircle2 className="ml-auto text-emerald-600 flex-shrink-0" size={22} />
                             )}
@@ -485,13 +487,13 @@ export function MaterialPageClient({ material }: MaterialPageClientProps) {
                       );
                     })}
                   </div>
-                  {pytanie.explanation && (
+                  {question.explanation && (
                     <div className="mt-5 p-4 bg-indigo-50 border border-indigo-200 rounded-xl">
                       <p className="text-sm font-semibold text-indigo-900 mb-1">
                         💡 Explanation:
                       </p>
                       <p className="text-sm text-gray-700 leading-relaxed">
-                        {pytanie.explanation}
+                        {question.explanation}
                       </p>
                     </div>
                   )}
@@ -517,17 +519,17 @@ export function MaterialPageClient({ material }: MaterialPageClientProps) {
                 </div>
 
                 {(() => {
-                  const pytanie = quiz.questions[currentQuestionIndex];
+                  const question = quiz.questions[currentQuestionIndex];
                   const index = currentQuestionIndex;
                   const selectedAnswer = answers[index];
 
                   return (
                     <div className="border-2 border-gray-200 bg-white rounded-xl p-5 sm:p-6 shadow-lg">
                       <h3 className="font-bold text-lg sm:text-xl mb-6 text-gray-800">
-                        {pytanie.question}
+                        {question.question}
                       </h3>
                       <div className="space-y-3 mb-6">
-                        {pytanie.answers.map((odpowiedz, answerIndex) => {
+                        {question.answers.map((answer, answerIndex) => {
                           const isSelected = selectedAnswer === answerIndex;
 
                           return (
@@ -545,7 +547,7 @@ export function MaterialPageClient({ material }: MaterialPageClientProps) {
                                 <span className="font-bold text-lg">
                                   {String.fromCharCode(65 + answerIndex)}.
                                 </span>
-                                <span className="flex-1">{odpowiedz}</span>
+                                <span className="flex-1">{answer}</span>
                               </div>
                             </button>
                           );
