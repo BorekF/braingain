@@ -1,3 +1,4 @@
+// Admin panel: add YouTube/PDF materials, view and clear logs, delete materials.
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -37,12 +38,7 @@ export function AdminPanel() {
   const [logs, setLogs] = useState<string[]>([]);
   const [logsLoading, setLogsLoading] = useState(false);
 
-  const getAdminSecret = () => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('adminSecret') || '';
-    }
-    return '';
-  };
+  const getAdminSecret = () => localStorage.getItem('adminSecret') || '';
 
   useEffect(() => {
     loadMaterials();
@@ -72,14 +68,11 @@ export function AdminPanel() {
   useEffect(() => {
     if (manualText.trim().length > 0) {
       const duration = estimateMaterialDuration(manualText, 'youtube');
-      const suggested = calculateRewardMinutes(duration);
-      setYoutubeSuggestedReward(suggested);
-    } else if (youtubeUrl.trim().length > 0) {
-      setYoutubeSuggestedReward(null);
+      setYoutubeSuggestedReward(calculateRewardMinutes(duration));
     } else {
       setYoutubeSuggestedReward(null);
     }
-  }, [manualText, youtubeUrl]);
+  }, [manualText]);
 
   async function handleAddYouTube() {
     if (!youtubeUrl.trim()) {
