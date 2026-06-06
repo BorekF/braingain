@@ -1,5 +1,6 @@
+// Server page for one material: loads it by id (404 if missing) and renders the quiz UI.
 import { notFound } from 'next/navigation';
-import { getMaterials } from '@/lib/materials';
+import { getMaterialById } from '@/lib/materials';
 import { MaterialPageClient } from './MaterialPageClient';
 
 export const dynamic = 'force-dynamic';
@@ -10,8 +11,7 @@ interface PageProps {
 
 export default async function MaterialPage({ params }: PageProps) {
   const { id } = await params;
-  const materials = await getMaterials();
-  const material = materials.find((m) => m.id === id);
+  const material = await getMaterialById(id);
 
   if (!material) {
     notFound();
@@ -19,5 +19,4 @@ export default async function MaterialPage({ params }: PageProps) {
 
   return <MaterialPageClient material={material} />;
 }
-
 
